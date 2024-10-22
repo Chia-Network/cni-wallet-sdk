@@ -567,7 +567,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-wallet-sdk"
+name = "cni-wallet-sdk"
 version = "0.16.0"
 dependencies = [
  "anyhow",
@@ -593,11 +593,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-wallet-sdk-napi"
+name = "cni-wallet-sdk-napi"
 version = "0.0.0"
 dependencies = [
  "chia",
- "chia-wallet-sdk",
+ "cni-wallet-sdk",
  "clvmr",
  "hex",
  "napi",

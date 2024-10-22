@@ -1,12 +1,12 @@
 [package]
-name = "chia-wallet-sdk"
+name = "cni-wallet-sdk"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "An unofficial SDK for building Chia wallets."
 authors = ["Brandon Haggstrom <me@rigidnetwork.com>"]
-homepage = "https://github.com/Rigidity/chia-wallet-sdk"
-repository = "https://github.com/Rigidity/chia-wallet-sdk"
+homepage = "https://github.com/Chia-Network/cni-wallet-sdk"
+repository = "https://github.com/Chia-Network/cni-wallet-sdk"
 readme = { workspace = true }
 keywords = { workspace = true }
 categories = { workspace = true }
@@ -87,7 +87,7 @@ clvm-traits = { workspace = true, features = ["derive"] }
 clvmr = { workspace = true }
 
 [workspace.dependencies]
-chia-wallet-sdk = { version = "0.16.0", path = "." }
+cni-wallet-sdk = { version = "0.16.0", path = "." }
 chia-sdk-client = { version = "0.16.0", path = "./crates/chia-sdk-client" }
 chia-sdk-derive = { version = "0.16.0", path = "./crates/chia-sdk-derive" }
 chia-sdk-driver = { version = "0.16.0", path = "./crates/chia-sdk-driver" }
