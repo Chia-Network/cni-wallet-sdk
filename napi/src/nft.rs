@@ -1,6 +1,6 @@
 use chia::protocol;
 use chia::puzzles::nft;
-use chia_wallet_sdk as sdk;
+use cni_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
 
 use crate::{

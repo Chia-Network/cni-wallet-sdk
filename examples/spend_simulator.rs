@@ -1,6 +1,6 @@
 use chia_protocol::Coin;
 use chia_puzzles::standard::StandardArgs;
-use chia_wallet_sdk::*;
+use cni_wallet_sdk::*;
 
 fn main() -> anyhow::Result<()> {
     // Create the simulator server and connect the peer client.

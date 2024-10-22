@@ -1,6 +1,6 @@
 use chia_protocol::{Bytes32, Coin};
 use chia_puzzles::standard::StandardArgs;
-use chia_wallet_sdk::*;
+use cni_wallet_sdk::*;
 
 fn main() -> anyhow::Result<()> {
     let ctx = &mut SpendContext::new();

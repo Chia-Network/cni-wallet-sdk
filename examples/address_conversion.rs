@@ -1,4 +1,4 @@
-use chia_wallet_sdk::*;
+use cni_wallet_sdk::*;
 use hex_literal::hex;
 
 fn main() -> anyhow::Result<()> {

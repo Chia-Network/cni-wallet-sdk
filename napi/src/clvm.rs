@@ -5,7 +5,7 @@ use chia::{
     protocol::{self, Bytes32},
     puzzles::nft::{self, NFT_METADATA_UPDATER_PUZZLE_HASH},
 };
-use chia_wallet_sdk::{
+use cni_wallet_sdk::{
     self as sdk, AggSigAmount, AggSigMe, AggSigParent, AggSigParentAmount, AggSigParentPuzzle,
     AggSigPuzzle, AggSigPuzzleAmount, AggSigUnsafe, AssertBeforeHeightAbsolute,
     AssertBeforeHeightRelative, AssertBeforeSecondsAbsolute, AssertBeforeSecondsRelative,

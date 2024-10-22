@@ -1,5 +1,5 @@
 use chia::bls::SecretKey;
-use chia_wallet_sdk as sdk;
+use cni_wallet_sdk as sdk;
 use napi::bindgen_prelude::*;
 
 use crate::{
