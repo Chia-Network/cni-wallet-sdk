@@ -567,46 +567,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cni-wallet-sdk"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "bech32",
- "chia-bls 0.15.0",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-client",
- "chia-sdk-driver",
- "chia-sdk-offers",
- "chia-sdk-signer",
- "chia-sdk-test",
- "chia-sdk-types",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "hex",
- "hex-literal",
- "indexmap",
- "rand",
- "rand_chacha",
- "thiserror",
-]
-
-[[package]]
-name = "cni-wallet-sdk-napi"
-version = "0.0.0"
-dependencies = [
- "chia",
- "cni-wallet-sdk",
- "clvmr",
- "hex",
- "napi",
- "napi-build",
- "napi-derive",
- "num-bigint",
-]
-
-[[package]]
 name = "chia_streamable_macro"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -701,6 +661,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "cni-wallet-sdk"
+version = "0.16.0"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "chia-bls 0.15.0",
+ "chia-protocol",
+ "chia-puzzles",
+ "chia-sdk-client",
+ "chia-sdk-driver",
+ "chia-sdk-offers",
+ "chia-sdk-signer",
+ "chia-sdk-test",
+ "chia-sdk-types",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "hex",
+ "hex-literal",
+ "indexmap",
+ "rand",
+ "rand_chacha",
+ "thiserror",
+]
+
+[[package]]
+name = "cni-wallet-sdk-napi"
+version = "0.0.0"
+dependencies = [
+ "chia",
+ "clvmr",
+ "cni-wallet-sdk",
+ "hex",
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "num-bigint",
 ]
 
 [[package]]
