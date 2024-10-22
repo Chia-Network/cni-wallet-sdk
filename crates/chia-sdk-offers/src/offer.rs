@@ -1,10 +1,10 @@
 use chia_protocol::{Bytes32, SpendBundle};
 use chia_puzzles::offer::SettlementPaymentsSolution;
-use chia_sdk_driver::Puzzle;
 use chia_traits::Streamable;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::Allocator;
+use cni_sdk_driver::Puzzle;
 use indexmap::IndexMap;
 
 use crate::{

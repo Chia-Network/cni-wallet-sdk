@@ -58,9 +58,9 @@ multiple_crate_versions = "allow"
 must_use_candidate = "allow"
 
 [features]
-chip-0035 = ["chia-sdk-driver/chip-0035"]
-native-tls = ["chia-sdk-client/native-tls"]
-rustls = ["chia-sdk-client/rustls"]
+chip-0035 = ["cni-sdk-driver/chip-0035"]
+native-tls = ["cni-sdk-client/native-tls"]
+rustls = ["cni-sdk-client/rustls"]
 
 [dependencies]
 thiserror = { workspace = true }
@@ -70,12 +70,12 @@ bech32 = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 indexmap = { workspace = true }
-chia-sdk-client = { workspace = true }
-chia-sdk-driver = { workspace = true }
-chia-sdk-offers = { workspace = true }
-chia-sdk-signer = { workspace = true }
-chia-sdk-test = { workspace = true }
-chia-sdk-types = { workspace = true }
+cni-sdk-client = { workspace = true }
+cni-sdk-driver = { workspace = true }
+cni-sdk-offers = { workspace = true }
+cni-sdk-signer = { workspace = true }
+cni-sdk-test = { workspace = true }
+cni-sdk-types = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -88,13 +88,13 @@ clvmr = { workspace = true }
 
 [workspace.dependencies]
 cni-wallet-sdk = { version = "0.16.0", path = "." }
-chia-sdk-client = { version = "0.16.0", path = "./crates/chia-sdk-client" }
-chia-sdk-derive = { version = "0.16.0", path = "./crates/chia-sdk-derive" }
-chia-sdk-driver = { version = "0.16.0", path = "./crates/chia-sdk-driver" }
-chia-sdk-offers = { version = "0.16.0", path = "./crates/chia-sdk-offers" }
-chia-sdk-signer = { version = "0.16.0", path = "./crates/chia-sdk-signer" }
-chia-sdk-test = { version = "0.16.0", path = "./crates/chia-sdk-test" }
-chia-sdk-types = { version = "0.16.0", path = "./crates/chia-sdk-types" }
+cni-sdk-client = { version = "0.16.0", path = "./crates/chia-sdk-client" }
+cni-sdk-derive = { version = "0.16.0", path = "./crates/chia-sdk-derive" }
+cni-sdk-driver = { version = "0.16.0", path = "./crates/chia-sdk-driver" }
+cni-sdk-offers = { version = "0.16.0", path = "./crates/chia-sdk-offers" }
+cni-sdk-signer = { version = "0.16.0", path = "./crates/chia-sdk-signer" }
+cni-sdk-test = { version = "0.16.0", path = "./crates/chia-sdk-test" }
+cni-sdk-types = { version = "0.16.0", path = "./crates/chia-sdk-types" }
 chia = "0.15.0"
 chia-ssl = "0.11.0"
 chia-protocol = "0.15.0"

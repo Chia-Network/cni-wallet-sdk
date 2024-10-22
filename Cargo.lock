@@ -386,142 +386,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-sdk-client"
-version = "0.16.0"
-dependencies = [
- "chia-protocol",
- "chia-sdk-types",
- "chia-ssl",
- "chia-traits 0.15.0",
- "futures-util",
- "native-tls",
- "rustls",
- "rustls-pemfile",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "tungstenite",
-]
-
-[[package]]
-name = "chia-sdk-derive"
-version = "0.16.0"
-dependencies = [
- "convert_case",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "chia-sdk-driver"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "chia-bls 0.15.0",
- "chia-consensus",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-signer",
- "chia-sdk-test",
- "chia-sdk-types",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "hex",
- "hex-literal",
- "num-bigint",
- "rstest",
- "thiserror",
-]
-
-[[package]]
-name = "chia-sdk-offers"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "bech32",
- "chia-bls 0.15.0",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-driver",
- "chia-sdk-test",
- "chia-sdk-types",
- "chia-traits 0.15.0",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "flate2",
- "hex",
- "hex-literal",
- "indexmap",
- "once_cell",
- "thiserror",
-]
-
-[[package]]
-name = "chia-sdk-signer"
-version = "0.16.0"
-dependencies = [
- "chia-bls 0.15.0",
- "chia-consensus",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-types",
- "clvm-traits",
- "clvmr",
- "hex",
- "hex-literal",
- "thiserror",
-]
-
-[[package]]
-name = "chia-sdk-test"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "bip39",
- "chia-bls 0.15.0",
- "chia-consensus",
- "chia-protocol",
- "chia-puzzles",
- "chia-sdk-client",
- "chia-sdk-signer",
- "chia-sdk-types",
- "chia-traits 0.15.0",
- "clvm-traits",
- "clvm-utils",
- "clvmr",
- "fastrand",
- "futures-channel",
- "futures-util",
- "indexmap",
- "itertools 0.13.0",
- "log",
- "rand",
- "rand_chacha",
- "thiserror",
- "tokio",
- "tokio-tungstenite",
-]
-
-[[package]]
-name = "chia-sdk-types"
-version = "0.16.0"
-dependencies = [
- "anyhow",
- "chia-bls 0.15.0",
- "chia-consensus",
- "chia-protocol",
- "chia-sdk-derive",
- "clvm-traits",
- "clvmr",
- "hex",
- "hex-literal",
- "once_cell",
-]
-
-[[package]]
 name = "chia-sha2"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,6 +528,142 @@ dependencies = [
 ]
 
 [[package]]
+name = "cni-sdk-client"
+version = "0.16.0"
+dependencies = [
+ "chia-protocol",
+ "chia-ssl",
+ "chia-traits 0.15.0",
+ "cni-sdk-types",
+ "futures-util",
+ "native-tls",
+ "rustls",
+ "rustls-pemfile",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "tungstenite",
+]
+
+[[package]]
+name = "cni-sdk-derive"
+version = "0.16.0"
+dependencies = [
+ "convert_case",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "cni-sdk-driver"
+version = "0.16.0"
+dependencies = [
+ "anyhow",
+ "chia-bls 0.15.0",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzles",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "cni-sdk-signer",
+ "cni-sdk-test",
+ "cni-sdk-types",
+ "hex",
+ "hex-literal",
+ "num-bigint",
+ "rstest",
+ "thiserror",
+]
+
+[[package]]
+name = "cni-sdk-offers"
+version = "0.16.0"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "chia-bls 0.15.0",
+ "chia-protocol",
+ "chia-puzzles",
+ "chia-traits 0.15.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "cni-sdk-driver",
+ "cni-sdk-test",
+ "cni-sdk-types",
+ "flate2",
+ "hex",
+ "hex-literal",
+ "indexmap",
+ "once_cell",
+ "thiserror",
+]
+
+[[package]]
+name = "cni-sdk-signer"
+version = "0.16.0"
+dependencies = [
+ "chia-bls 0.15.0",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzles",
+ "clvm-traits",
+ "clvmr",
+ "cni-sdk-types",
+ "hex",
+ "hex-literal",
+ "thiserror",
+]
+
+[[package]]
+name = "cni-sdk-test"
+version = "0.16.0"
+dependencies = [
+ "anyhow",
+ "bip39",
+ "chia-bls 0.15.0",
+ "chia-consensus",
+ "chia-protocol",
+ "chia-puzzles",
+ "chia-traits 0.15.0",
+ "clvm-traits",
+ "clvm-utils",
+ "clvmr",
+ "cni-sdk-client",
+ "cni-sdk-signer",
+ "cni-sdk-types",
+ "fastrand",
+ "futures-channel",
+ "futures-util",
+ "indexmap",
+ "itertools 0.13.0",
+ "log",
+ "rand",
+ "rand_chacha",
+ "thiserror",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
+name = "cni-sdk-types"
+version = "0.16.0"
+dependencies = [
+ "anyhow",
+ "chia-bls 0.15.0",
+ "chia-consensus",
+ "chia-protocol",
+ "clvm-traits",
+ "clvmr",
+ "cni-sdk-derive",
+ "hex",
+ "hex-literal",
+ "once_cell",
+]
+
+[[package]]
 name = "cni-wallet-sdk"
 version = "0.16.0"
 dependencies = [
@@ -672,15 +672,15 @@ dependencies = [
  "chia-bls 0.15.0",
  "chia-protocol",
  "chia-puzzles",
- "chia-sdk-client",
- "chia-sdk-driver",
- "chia-sdk-offers",
- "chia-sdk-signer",
- "chia-sdk-test",
- "chia-sdk-types",
  "clvm-traits",
  "clvm-utils",
  "clvmr",
+ "cni-sdk-client",
+ "cni-sdk-driver",
+ "cni-sdk-offers",
+ "cni-sdk-signer",
+ "cni-sdk-test",
+ "cni-sdk-types",
  "hex",
  "hex-literal",
  "indexmap",

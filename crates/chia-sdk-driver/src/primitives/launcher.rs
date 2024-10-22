@@ -4,9 +4,9 @@ use chia_protocol::{Bytes32, Coin, CoinSpend, Program};
 use chia_puzzles::singleton::{
     LauncherSolution, SingletonArgs, SINGLETON_LAUNCHER_PUZZLE, SINGLETON_LAUNCHER_PUZZLE_HASH,
 };
-use chia_sdk_types::{announcement_id, Conditions};
 use clvm_traits::ToClvm;
 use clvmr::Allocator;
+use cni_sdk_types::{announcement_id, Conditions};
 
 use crate::{DriverError, SpendContext};
 
@@ -178,7 +178,7 @@ mod tests {
 
     use super::*;
 
-    use chia_sdk_test::Simulator;
+    use cni_sdk_test::Simulator;
 
     #[test]
     fn test_singleton_launcher() -> anyhow::Result<()> {

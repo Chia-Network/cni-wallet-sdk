@@ -4,10 +4,10 @@ use chia_puzzles::{
     cat::{CatArgs, CatSolution, EverythingWithSignatureTailArgs, GenesisByCoinIdTailArgs},
     CoinProof, LineageProof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
 use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::CurriedProgram;
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::{run_puzzle, Condition, Conditions, CreateCoin};
 
 use crate::{CatLayer, DriverError, Layer, Puzzle, Spend, SpendContext};
 
@@ -280,7 +280,7 @@ impl Cat {
 mod tests {
     use chia_consensus::gen::validation_error::ErrorCode;
     use chia_puzzles::cat::EverythingWithSignatureTailArgs;
-    use chia_sdk_test::{Simulator, SimulatorError};
+    use cni_sdk_test::{Simulator, SimulatorError};
     use rstest::rstest;
 
     use crate::{SpendWithConditions, StandardLayer};

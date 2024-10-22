@@ -1,9 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
-use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::Allocator;
+use cni_sdk_types::Conditions;
 
 use crate::{DriverError, Launcher, SpendContext, SpendWithConditions};
 

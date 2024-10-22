@@ -21,10 +21,10 @@ use chia_puzzles::{
     },
     standard::{STANDARD_PUZZLE, STANDARD_PUZZLE_HASH},
 };
-use chia_sdk_types::run_puzzle;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, TreeHash};
 use clvmr::{serde::node_from_bytes, Allocator, NodePtr};
+use cni_sdk_types::run_puzzle;
 
 use crate::{
     DriverError, Spend, P2_DELEGATED_CONDITIONS_PUZZLE, P2_DELEGATED_CONDITIONS_PUZZLE_HASH,

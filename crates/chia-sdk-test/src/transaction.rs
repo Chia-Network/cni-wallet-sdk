@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use chia_bls::{sign, PublicKey, SecretKey, Signature};
 use chia_protocol::{CoinSpend, SpendBundle, TransactionAck};
-use chia_sdk_client::Peer;
-use chia_sdk_signer::{AggSigConstants, RequiredSignature};
 use clvmr::Allocator;
+use cni_sdk_client::Peer;
+use cni_sdk_signer::{AggSigConstants, RequiredSignature};
 
 use crate::SimulatorError;
 

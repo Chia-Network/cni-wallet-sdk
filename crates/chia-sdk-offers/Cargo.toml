@@ -1,5 +1,5 @@
 [package]
-name = "chia-sdk-offers"
+name = "cni-sdk-offers"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -26,12 +26,12 @@ clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 flate2 = { workspace = true, features = ["zlib-ng-compat"] }
 indexmap = { workspace = true }
-chia-sdk-driver = { workspace = true }
-chia-sdk-types = { workspace = true }
+cni-sdk-driver = { workspace = true }
+cni-sdk-types = { workspace = true }
 once_cell = { workspace = true }
 
 [dev-dependencies]
 hex-literal = { workspace = true }
 hex = { workspace = true }
 anyhow = { workspace = true }
-chia-sdk-test = { path = "../chia-sdk-test" }
+cni-sdk-test = { path = "../chia-sdk-test" }

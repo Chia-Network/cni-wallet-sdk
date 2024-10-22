@@ -105,8 +105,8 @@ impl<M> DidInfo<M> {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
+    use cni_sdk_test::Simulator;
+    use cni_sdk_types::Conditions;
 
     use crate::{Launcher, SpendContext, StandardLayer};
 

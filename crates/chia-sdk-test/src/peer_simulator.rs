@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use chia_protocol::{Bytes32, Coin, CoinState, Message};
-use chia_sdk_client::Peer;
+use cni_sdk_client::Peer;
 use error::PeerSimulatorError;
 use peer_map::PeerMap;
 use simulator_config::SimulatorConfig;
@@ -152,7 +152,7 @@ mod tests {
         Bytes, CoinSpend, CoinStateFilters, CoinStateUpdate, RespondCoinState, RespondPuzzleState,
         SpendBundle,
     };
-    use chia_sdk_types::{AggSigMe, CreateCoin, Remark};
+    use cni_sdk_types::{AggSigMe, CreateCoin, Remark};
 
     use crate::{coin_state_updates, test_secret_key, test_transaction, to_program, to_puzzle};
 

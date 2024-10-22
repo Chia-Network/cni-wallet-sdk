@@ -1,8 +1,8 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32, Coin, CoinSpend};
-use chia_sdk_types::{run_puzzle, AggSig, AggSigKind, Condition};
 use clvm_traits::{FromClvm, ToClvm};
 use clvmr::Allocator;
+use cni_sdk_types::{run_puzzle, AggSig, AggSigKind, Condition};
 
 use crate::{AggSigConstants, SignerError};
 
@@ -160,7 +160,7 @@ mod tests {
     use chia_bls::{master_to_wallet_unhardened, SecretKey};
     use chia_protocol::Bytes32;
     use chia_puzzles::DeriveSynthetic;
-    use chia_sdk_types::MAINNET_CONSTANTS;
+    use cni_sdk_types::MAINNET_CONSTANTS;
     use hex_literal::hex;
 
     #[test]

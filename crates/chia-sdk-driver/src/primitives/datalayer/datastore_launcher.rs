@@ -3,10 +3,10 @@ use chia_puzzles::{
     nft::{NftStateLayerArgs, NFT_STATE_LAYER_PUZZLE_HASH},
     EveProof, Proof,
 };
-use chia_sdk_types::Conditions;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::Allocator;
+use cni_sdk_types::Conditions;
 
 use crate::{
     DelegationLayerArgs, DriverError, Launcher, SpendContext, DL_METADATA_UPDATER_PUZZLE_HASH,
@@ -94,7 +94,7 @@ impl Launcher {
 mod tests {
     use chia_bls::SecretKey;
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, Simulator};
+    use cni_sdk_test::{test_secret_keys, Simulator};
     use rstest::rstest;
 
     use crate::{

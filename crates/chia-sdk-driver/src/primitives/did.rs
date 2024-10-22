@@ -1,9 +1,9 @@
 use chia_protocol::Coin;
 use chia_puzzles::{did::DidSolution, singleton::SingletonSolution, LineageProof, Proof};
-use chia_sdk_types::{run_puzzle, Condition, Conditions};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::{run_puzzle, Condition, Conditions};
 
 use crate::{
     DidLayer, DriverError, Layer, Puzzle, SingletonLayer, Spend, SpendContext, SpendWithConditions,
@@ -227,8 +227,8 @@ mod tests {
     use std::fmt;
 
     use chia_protocol::Bytes32;
-    use chia_sdk_test::Simulator;
     use clvm_traits::clvm_list;
+    use cni_sdk_test::Simulator;
     use rstest::rstest;
 
     use crate::{HashedPtr, Launcher, StandardLayer};

@@ -1,9 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::nft::{NftStateLayerArgs, NftStateLayerSolution, NFT_STATE_LAYER_PUZZLE_HASH};
-use chia_sdk_types::{run_puzzle, NewMetadataOutput, UpdateNftMetadata};
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::{run_puzzle, NewMetadataOutput, UpdateNftMetadata};
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};
 

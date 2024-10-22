@@ -1,4 +1,4 @@
-use chia_sdk_types::Conditions;
+use cni_sdk_types::Conditions;
 
 use crate::{DriverError, Spend, SpendContext};
 

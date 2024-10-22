@@ -1,5 +1,5 @@
 use chia_consensus::consensus_constants::ConsensusConstants;
-use chia_sdk_types::MAINNET_CONSTANTS;
+use cni_sdk_types::MAINNET_CONSTANTS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimulatorConfig {

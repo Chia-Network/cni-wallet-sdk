@@ -6,11 +6,11 @@ use chia_puzzles::{
     },
     EveProof, LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
-use chia_sdk_types::{Condition, UpdateNftMetadata};
 use clvm_traits::{FromClvm, FromClvmError, ToClvm};
 use clvm_utils::{tree_hash, CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::{run_puzzle, CreateCoin, NewMetadataInfo, NewMetadataOutput};
+use cni_sdk_types::{Condition, UpdateNftMetadata};
 use num_bigint::BigInt;
 
 use crate::{
@@ -590,9 +590,9 @@ pub mod tests {
 
     use chia_bls::{PublicKey, SecretKey};
     use chia_puzzles::standard::StandardArgs;
-    use chia_sdk_test::{test_secret_keys, Simulator};
-    use chia_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
     use clvmr::sha2::Sha256;
+    use cni_sdk_test::{test_secret_keys, Simulator};
+    use cni_sdk_types::{Conditions, MeltSingleton, UpdateDataStoreMerkleRoot};
     use rstest::rstest;
 
     use crate::{

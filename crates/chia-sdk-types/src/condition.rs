@@ -1,7 +1,7 @@
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes, Bytes32};
-use chia_sdk_derive::conditions;
 use clvm_traits::{FromClvm, ToClvm};
+use cni_sdk_derive::conditions;
 
 mod agg_sig;
 

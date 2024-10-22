@@ -1,5 +1,5 @@
 [package]
-name = "chia-sdk-driver"
+name = "cni-sdk-driver"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -28,14 +28,14 @@ clvm-traits = { workspace = true }
 clvm-utils = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
-chia-sdk-types = { workspace = true }
+cni-sdk-types = { workspace = true }
 hex-literal = { workspace = true }
 num-bigint = { workspace = true}
 hex = { workspace = true }
 
 [dev-dependencies]
-chia-sdk-test = { workspace = true }
-chia-sdk-signer = { workspace = true }
+cni-sdk-test = { workspace = true }
+cni-sdk-signer = { workspace = true }
 anyhow = { workspace = true }
 chia-consensus = { workspace = true }
 hex = { workspace = true }

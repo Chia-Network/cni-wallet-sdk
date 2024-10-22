@@ -1,8 +1,8 @@
 use chia_puzzles::standard::StandardSolution;
-use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::Conditions;
 use hex_literal::hex;
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, StandardLayer};

@@ -169,8 +169,8 @@ pub const P2_SINGLETON_PUZZLE_HASH: TreeHash = TreeHash::new(hex!(
 mod tests {
     use chia_protocol::Coin;
     use chia_puzzles::{singleton::SingletonSolution, EveProof, Proof};
-    use chia_sdk_test::Simulator;
-    use chia_sdk_types::Conditions;
+    use cni_sdk_test::Simulator;
+    use cni_sdk_types::Conditions;
 
     use super::*;
 

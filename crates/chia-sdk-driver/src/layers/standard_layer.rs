@@ -1,10 +1,10 @@
 use chia_bls::PublicKey;
 use chia_protocol::Coin;
 use chia_puzzles::standard::{StandardArgs, StandardSolution, STANDARD_PUZZLE_HASH};
-use chia_sdk_types::Conditions;
 use clvm_traits::{clvm_quote, FromClvm};
 use clvm_utils::{CurriedProgram, ToTreeHash, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::Conditions;
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext, SpendWithConditions};
 
@@ -124,7 +124,7 @@ impl ToTreeHash for StandardLayer {
 
 #[cfg(test)]
 mod tests {
-    use chia_sdk_test::Simulator;
+    use cni_sdk_test::Simulator;
 
     use super::*;
 

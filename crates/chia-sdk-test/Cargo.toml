@@ -1,5 +1,5 @@
 [package]
-name = "chia-sdk-test"
+name = "cni-sdk-test"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -36,6 +36,6 @@ bip39 = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite = { workspace = true }
-chia-sdk-types = { workspace = true }
-chia-sdk-signer = { workspace = true }
-chia-sdk-client = { workspace = true }
+cni-sdk-types = { workspace = true }
+cni-sdk-signer = { workspace = true }
+cni-sdk-client = { workspace = true }

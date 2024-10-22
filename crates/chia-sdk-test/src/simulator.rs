@@ -7,7 +7,7 @@ use chia_consensus::{
 };
 use chia_protocol::{Bytes32, Coin, CoinSpend, CoinState, Program, SpendBundle};
 use chia_puzzles::standard::StandardArgs;
-use chia_sdk_types::TESTNET11_CONSTANTS;
+use cni_sdk_types::TESTNET11_CONSTANTS;
 use fastrand::Rng;
 use indexmap::{IndexMap, IndexSet};
 

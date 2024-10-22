@@ -1,5 +1,5 @@
 [package]
-name = "chia-sdk-signer"
+name = "cni-sdk-signer"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -21,7 +21,7 @@ chia-consensus = { workspace = true }
 clvm-traits = { workspace = true }
 clvmr = { workspace = true }
 thiserror = { workspace = true }
-chia-sdk-types = { workspace = true }
+cni-sdk-types = { workspace = true }
 
 [dev-dependencies]
 chia-puzzles = { workspace = true }

@@ -1,8 +1,8 @@
 use std::io;
 
 use chia_protocol::ProtocolMessageTypes;
-use chia_sdk_client::ClientError;
-use chia_sdk_signer::SignerError;
+use cni_sdk_client::ClientError;
+use cni_sdk_signer::SignerError;
 use futures_channel::mpsc::SendError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite;

@@ -4,10 +4,10 @@ use chia_puzzles::{
     singleton::{SingletonArgs, SingletonSolution},
     LineageProof, Proof,
 };
-use chia_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
 use clvm_traits::{clvm_list, FromClvm, ToClvm};
 use clvm_utils::{tree_hash, ToTreeHash};
 use clvmr::{sha2::Sha256, Allocator, NodePtr};
+use cni_sdk_types::{run_puzzle, Condition, Conditions, NewMetadataOutput, TransferNft};
 
 use crate::{
     DriverError, Layer, NftOwnershipLayer, NftStateLayer, Puzzle, RoyaltyTransferLayer,
@@ -391,7 +391,7 @@ mod tests {
     use super::*;
 
     use chia_puzzles::nft::NftMetadata;
-    use chia_sdk_test::Simulator;
+    use cni_sdk_test::Simulator;
 
     #[test]
     fn test_nft_transfer() -> anyhow::Result<()> {

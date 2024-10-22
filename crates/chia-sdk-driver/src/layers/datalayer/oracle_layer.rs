@@ -1,7 +1,7 @@
 use chia_protocol::{Bytes, Bytes32};
-use chia_sdk_types::Condition;
 use clvm_traits::{clvm_quote, match_quote, FromClvm, ToClvm};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::Condition;
 
 use crate::{DriverError, Layer, Puzzle, Spend, SpendContext};
 

@@ -1,8 +1,8 @@
 use chia_bls::PublicKey;
-use chia_sdk_types::Condition;
 use clvm_traits::{FromClvm, ToClvm};
 use clvm_utils::{CurriedProgram, TreeHash};
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::Condition;
 use hex_literal::hex;
 
 use crate::{DriverError, Layer, Puzzle, SpendContext};

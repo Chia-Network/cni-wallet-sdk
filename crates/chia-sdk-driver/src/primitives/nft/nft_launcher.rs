@@ -1,9 +1,9 @@
 use chia_protocol::Bytes32;
 use chia_puzzles::{EveProof, Proof};
-use chia_sdk_types::{Conditions, TransferNft};
 use clvm_traits::{clvm_quote, FromClvm, ToClvm};
 use clvm_utils::ToTreeHash;
 use clvmr::{Allocator, NodePtr};
+use cni_sdk_types::{Conditions, TransferNft};
 
 use crate::{did_puzzle_assertion, DriverError, Launcher, Spend, SpendContext};
 
@@ -113,9 +113,9 @@ mod tests {
     use chia_consensus::spendbundle_conditions::get_conditions_from_spendbundle;
     use chia_protocol::{Coin, SpendBundle};
     use chia_puzzles::{nft::NftMetadata, standard::StandardArgs};
-    use chia_sdk_signer::AggSigConstants;
-    use chia_sdk_test::{sign_transaction, test_secret_key, Simulator};
-    use chia_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
+    use cni_sdk_signer::AggSigConstants;
+    use cni_sdk_test::{sign_transaction, test_secret_key, Simulator};
+    use cni_sdk_types::{announcement_id, TESTNET11_CONSTANTS};
 
     #[test]
     fn test_nft_mint_cost() -> anyhow::Result<()> {

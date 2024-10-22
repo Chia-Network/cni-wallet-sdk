@@ -1,8 +1,8 @@
 use chia_protocol::{Bytes32, Coin, CoinSpend};
 use chia_puzzles::{nft::NftIntermediateLauncherArgs, singleton::SINGLETON_LAUNCHER_PUZZLE_HASH};
-use chia_sdk_types::{announcement_id, Conditions};
 use clvm_utils::CurriedProgram;
 use clvmr::{sha2::Sha256, Allocator};
+use cni_sdk_types::{announcement_id, Conditions};
 
 use crate::{DriverError, SpendContext};
 

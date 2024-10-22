@@ -1,5 +1,5 @@
 [package]
-name = "chia-sdk-client"
+name = "cni-sdk-client"
 version = "0.16.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -19,7 +19,7 @@ native-tls = ["dep:native-tls", "tokio-tungstenite/native-tls"]
 rustls = ["dep:rustls", "dep:rustls-pemfile", "tokio-tungstenite/rustls-tls-webpki-roots"]
 
 [dependencies]
-chia-sdk-types = { workspace = true }
+cni-sdk-types = { workspace = true }
 chia-protocol = { workspace = true }
 chia-traits = { workspace = true }
 chia-ssl = { workspace = true }
