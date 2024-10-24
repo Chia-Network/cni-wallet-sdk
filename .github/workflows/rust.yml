@@ -31,7 +31,7 @@ jobs:
         run: cargo binstall cargo-tarpaulin --locked -y
 
       - name: Run tests
-        run: cargo tarpaulin --release --workspace --exclude chia-wallet-sdk-napi --all-features --out xml
+        run: cargo tarpaulin --release --workspace --exclude cni-wallet-sdk-napi --all-features --out xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4.0.1
@@ -52,8 +52,8 @@ jobs:
       - name: Fmt
         run: cargo fmt --all -- --files-with-diff --check
 
-      - name: Publish
-        if: startsWith(github.event.ref, 'refs/tags')
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.cargo_registry_token }}
-        run: cargo ws publish --publish-as-is --allow-dirty
+      # - name: Publish
+      #   if: startsWith(github.event.ref, 'refs/tags')
+      #   env:
+      #     CARGO_REGISTRY_TOKEN: ${{ secrets.cargo_registry_token }}
+      #   run: cargo ws publish --publish-as-is --allow-dirty
