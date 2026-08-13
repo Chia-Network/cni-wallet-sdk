@@ -1035,21 +1035,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chia-wallet-sdk-wasm"
-version = "0.34.0"
-dependencies = [
- "bindy",
- "bindy-macro",
- "chia-sdk-bindings",
- "console_error_panic_hook",
- "getrandom 0.3.4",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-derive",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "chia_streamable_macro"
 version = "0.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
