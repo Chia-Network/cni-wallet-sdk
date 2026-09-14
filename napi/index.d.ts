@@ -398,6 +398,26 @@ export declare class Cat {
   set info(value: CatInfo)
 }
 
+export declare class CatalogActionLog {
+  clone(): CatalogActionLog
+  get kind(): string
+  set kind(value: string)
+  get register(): CatalogRegisterActionLog | null
+  set register(value?: CatalogRegisterActionLog | undefined | null)
+  get refund(): CatalogRefundActionLog | null
+  set refund(value?: CatalogRefundActionLog | undefined | null)
+  get delegatedState(): CatalogDelegatedStateActionLog | null
+  set delegatedState(value?: CatalogDelegatedStateActionLog | undefined | null)
+}
+
+export declare class CatalogDelegatedStateActionLog {
+  clone(): CatalogDelegatedStateActionLog
+  get oldState(): CatalogRegistryState
+  set oldState(value: CatalogRegistryState)
+  get newState(): CatalogRegistryState
+  set newState(value: CatalogRegistryState)
+}
+
 export declare class CatalogPrecommitCoin {
   clone(): CatalogPrecommitCoin
   static new(clvm: Clvm, parentCoinId: Uint8Array, proof: LineageProof, assetId: Uint8Array, controllerSingletonLauncherId: Uint8Array, relativeBlockHeight: number, payoutPuzzleHash: Uint8Array, refundPuzzleHash: Uint8Array, value: CatalogPrecommitValue, precommitAmount: bigint): CatalogPrecommitCoin
@@ -424,6 +444,46 @@ export declare class CatalogPrecommitValue {
   set paymentAssetId(value: Uint8Array)
 }
 
+export declare class CatalogRefundActionLog {
+  clone(): CatalogRefundActionLog
+  get spentSlot(): CatalogSlotValue | null
+  set spentSlot(value?: CatalogSlotValue | undefined | null)
+  get createdSlot(): CatalogSlotValue | null
+  set createdSlot(value?: CatalogSlotValue | undefined | null)
+  get registeredTailHash(): Buffer
+  set registeredTailHash(value: Uint8Array)
+  get registeredInitialInnerPuzzleHash(): Buffer
+  set registeredInitialInnerPuzzleHash(value: Uint8Array)
+  get precommitAmount(): bigint
+  set precommitAmount(value: bigint)
+}
+
+export declare class CatalogRegisterActionLog {
+  clone(): CatalogRegisterActionLog
+  get spentLeftSlot(): CatalogSlotValue
+  set spentLeftSlot(value: CatalogSlotValue)
+  get spentRightSlot(): CatalogSlotValue
+  set spentRightSlot(value: CatalogSlotValue)
+  get createdLeftSlot(): CatalogSlotValue
+  set createdLeftSlot(value: CatalogSlotValue)
+  get createdTailSlot(): CatalogSlotValue
+  set createdTailSlot(value: CatalogSlotValue)
+  get createdRightSlot(): CatalogSlotValue
+  set createdRightSlot(value: CatalogSlotValue)
+  get prelauncherFullPuzzleHash(): Buffer
+  set prelauncherFullPuzzleHash(value: Uint8Array)
+  get prelauncherId(): Buffer
+  set prelauncherId(value: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get registeredTailHash(): Buffer
+  set registeredTailHash(value: Uint8Array)
+  get registeredInitialInnerPuzzleHash(): Buffer
+  set registeredInitialInnerPuzzleHash(value: Uint8Array)
+  get precommitAmount(): bigint
+  set precommitAmount(value: bigint)
+}
+
 export declare class CatalogRegistry {
   clone(): CatalogRegistry
   coin(): Coin
@@ -432,7 +492,10 @@ export declare class CatalogRegistry {
   constants(): CatalogRegistryConstants
   innerPuzzleHash(): Buffer
   puzzleHash(): Buffer
+  child(): CatalogRegistry
   pendingCreatedSlots(): Array<CatalogSlot>
+  pendingSpentSlots(): Array<CatalogSlotValue>
+  pendingLogs(): Array<CatalogActionLog>
   pendingSignature(): Signature
   finishSpend(): CatalogRegistryFinishedSpendResult
   register(tailHash: Uint8Array, leftSlot: CatalogSlot, rightSlot: CatalogSlot, precommitCoin: CatalogPrecommitCoin, eveNftInnerSpend: Spend): Array<Program>
@@ -522,6 +585,7 @@ export declare class CatalogSlot {
 export declare class CatalogSlotValue {
   clone(): CatalogSlotValue
   static new(counter: bigint, assetId: Uint8Array, leftAssetId: Uint8Array, rightAssetId: Uint8Array): CatalogSlotValue
+  valueHash(): Buffer
   get counter(): bigint
   set counter(value: bigint)
   get assetId(): Buffer
@@ -812,6 +876,7 @@ export declare class Clvm {
   force1Of2RestrictedVariable(): Program
   forceAssertCoinAnnouncement(): Program
   forceCoinMessage(): Program
+  forceSingletonRecreation(): Program
   preventConditionOpcode(): Program
   preventMultipleCreateCoins(): Program
   timelock(): Program
@@ -1110,6 +1175,8 @@ export declare class Constants {
   static forceAssertCoinAnnouncementHash(): Buffer
   static forceCoinMessage(): Buffer
   static forceCoinMessageHash(): Buffer
+  static forceSingletonRecreation(): Buffer
+  static forceSingletonRecreationHash(): Buffer
   static preventConditionOpcode(): Buffer
   static preventConditionOpcodeHash(): Buffer
   static preventMultipleCreateCoins(): Buffer
@@ -1274,6 +1341,22 @@ export declare class Deltas {
   get(id: Id): Delta | null
   isNeeded(id: Id): boolean
   ids(): Array<Id>
+}
+
+export declare class DepositSlot {
+  clone(): DepositSlot
+  static new(proof: LineageProof, launcherId: Uint8Array, value: RewardDistributorDepositSlotValue): DepositSlot
+  valueHash(): Buffer
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): LineageProof
+  set proof(value: LineageProof)
+  get nonce(): bigint
+  set nonce(value: bigint)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get value(): RewardDistributorDepositSlotValue
+  set value(value: RewardDistributorDepositSlotValue)
 }
 
 export declare class Did {
@@ -1926,6 +2009,7 @@ export declare class MipsSpend {
   timelock(timelock: bigint): void
   force1Of2RestrictedVariable(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array, newRightSideMemberHash: Uint8Array): void
   preventConditionOpcode(conditionOpcode: number): void
+  forceSingletonRecreation(): void
   preventMultipleCreateCoins(): void
   preventVaultSideEffects(): void
 }
@@ -2601,7 +2685,7 @@ export declare class ReceiveMessage {
 
 export declare class RefreshNftsInfo {
   clone(): RefreshNftsInfo
-  constructor(slot: EntrySlot, nfts: Array<Nft>, nftSharesDelta: Array<bigint>, newShares: Array<bigint>, nftInclusionProofs: Array<MerkleProof>)
+  constructor(slot: EntrySlot, nfts: Array<Nft>, nftSharesDelta: Array<bigint>, newShares: Array<bigint>, nftInclusionProofs: Array<MerkleProof>, depositSlots: Array<DepositSlot>)
   get slot(): EntrySlot
   set slot(value: EntrySlot)
   get nfts(): Array<Nft>
@@ -2612,6 +2696,8 @@ export declare class RefreshNftsInfo {
   set newShares(value: Array<bigint>)
   get nftInclusionProofs(): Array<MerkleProof>
   set nftInclusionProofs(value: Array<MerkleProof>)
+  get depositSlots(): Array<DepositSlot>
+  set depositSlots(value: Array<DepositSlot>)
 }
 
 export declare class Remark {
@@ -2737,6 +2823,7 @@ export declare class RewardDistributor {
   pendingCreatedRewardSlots(): Array<RewardSlot>
   pendingCreatedCommitmentSlots(): Array<CommitmentSlot>
   pendingCreatedEntrySlots(): Array<EntrySlot>
+  pendingCreatedDepositSlots(): Array<DepositSlot>
   pendingLogs(): Array<RewardDistributorActionLog>
   pendingSignature(): Signature
   static reserveFullPuzzleHash(assetId: Uint8Array, distributorLauncherId: Uint8Array, nonce: bigint): Buffer
@@ -2753,8 +2840,8 @@ export declare class RewardDistributor {
   stakeCollectionNfts(offeredNfts: Array<Nft>, nftLauncherProofs: Array<NftLauncherProof>, entryCustodyPuzzleHash: Uint8Array, existingSlot?: EntrySlot | undefined | null): RewardDistributorStakeCollectionNftsResult
   stakeCuratedNfts(offeredNfts: Array<Nft>, nftShares: Array<bigint>, inclusionProofs: Array<MerkleProof>, entryCustodyPuzzleHash: Uint8Array, existingSlot: EntrySlot | undefined | null, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorStakeCuratedNftsResult
   stakeCat(offeredCat: Cat, entryCustodyPuzzleHash: Uint8Array, existingSlot?: EntrySlot | undefined | null): RewardDistributorStakeCatResult
-  unstakeLockedNfts(entrySlot: EntrySlot, lockedNfts: Array<Nft>, lockedNftShares: Array<bigint>): RewardDistributorUnstakeLockedNftsResult
-  unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat): RewardDistributorUnstakeLockedCatResult
+  unstakeLockedNfts(entrySlot: EntrySlot, lockedNfts: Array<Nft>, lockedNftShares: Array<bigint>, depositSlots: Array<DepositSlot>): RewardDistributorUnstakeLockedNftsResult
+  unstakeLockedCat(entrySlot: EntrySlot, lockedCat: Cat, depositSlot: DepositSlot): RewardDistributorUnstakeLockedCatResult
   refreshNfts(refreshNftsInfos: Array<RefreshNftsInfo>, dlRootHash: Uint8Array, dlMetadataRestHash: Uint8Array | undefined | null, dlMetadataUpdaterHashHash: Uint8Array, dlInnerPuzzleHash: Uint8Array): RewardDistributorRefreshNftsResult
   static lockedNftHint(distributorLauncherId: Uint8Array, custodyPuzzleHash: Uint8Array): Buffer
 }
@@ -2859,6 +2946,18 @@ export declare class RewardDistributorConstants {
   set reserveInnerPuzzleHash(value: Uint8Array)
   get reserveFullPuzzleHash(): Buffer
   set reserveFullPuzzleHash(value: Uint8Array)
+}
+
+export declare class RewardDistributorDepositSlotValue {
+  clone(): RewardDistributorDepositSlotValue
+  static nft(payoutPuzzleHash: Uint8Array, shares: bigint, launcherId: Uint8Array): RewardDistributorDepositSlotValue
+  static cat(payoutPuzzleHash: Uint8Array, catAmount: bigint): RewardDistributorDepositSlotValue
+  launcherId(): Buffer | null
+  catAmount(): bigint | null
+  get payoutPuzzleHash(): Buffer
+  set payoutPuzzleHash(value: Uint8Array)
+  get shares(): bigint
+  set shares(value: bigint)
 }
 
 export declare class RewardDistributorEntrySlotValue {
@@ -2985,6 +3084,10 @@ export declare class RewardDistributorRefreshNftsFromDlActionLog {
   set spentEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
   get createdEntrySlots(): Array<RewardDistributorEntrySlotValue>
   set createdEntrySlots(value: Array<RewardDistributorEntrySlotValue>)
+  get spentDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set spentDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
+  get createdDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set createdDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get nftEntries(): Array<RewardDistributorNftStakeEntry>
   set nftEntries(value: Array<RewardDistributorNftStakeEntry>)
   get dlRootHash(): Buffer
@@ -3042,6 +3145,8 @@ export declare class RewardDistributorStakeActionLog {
   set spentEntrySlot(value?: RewardDistributorEntrySlotValue | undefined | null)
   get createdEntrySlot(): RewardDistributorEntrySlotValue
   set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get createdDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set createdDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get catAmount(): bigint | null
   set catAmount(value?: bigint | undefined | null)
   get nftEntries(): Array<RewardDistributorNftStakeEntry> | null
@@ -3124,6 +3229,8 @@ export declare class RewardDistributorUnstakeActionLog {
   set spentEntrySlot(value: RewardDistributorEntrySlotValue)
   get createdEntrySlot(): RewardDistributorEntrySlotValue
   set createdEntrySlot(value: RewardDistributorEntrySlotValue)
+  get spentDepositSlots(): Array<RewardDistributorDepositSlotValue>
+  set spentDepositSlots(value: Array<RewardDistributorDepositSlotValue>)
   get catAmount(): bigint | null
   set catAmount(value?: bigint | undefined | null)
   get nftEntries(): Array<RewardDistributorNftStakeEntry> | null
@@ -3209,6 +3316,7 @@ export declare class RpcClient {
   static mainnet(): RpcClient
   static local(certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
   static localWithUrl(baseUrl: string, certBytes: Uint8Array, keyBytes: Uint8Array): RpcClient
+  baseUrl(): string
   getBlockchainState(): Promise<BlockchainStateResponse>
   getAdditionsAndRemovals(headerHash: Uint8Array): Promise<AdditionsAndRemovalsResponse>
   getBlock(headerHash: Uint8Array): Promise<GetBlockResponse>
@@ -3586,6 +3694,7 @@ export declare class WrapperMemo {
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo
   static preventMultipleCreateCoins(clvm: Clvm): WrapperMemo
+  static forceSingletonRecreation(clvm: Clvm): WrapperMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): WrapperMemo
   static preventConditionOpcode(clvm: Clvm, opcode: number, reveal: boolean): WrapperMemo
   constructor(puzzleHash: Uint8Array, memo: Program)
@@ -3593,6 +3702,28 @@ export declare class WrapperMemo {
   set puzzleHash(value: Uint8Array)
   get memo(): Program
   set memo(value: Program)
+}
+
+export declare class XchandlesActionLog {
+  clone(): XchandlesActionLog
+  get kind(): string
+  set kind(value: string)
+  get oracle(): XchandlesOracleActionLog | null
+  set oracle(value?: XchandlesOracleActionLog | undefined | null)
+  get extend(): XchandlesExtendActionLog | null
+  set extend(value?: XchandlesExtendActionLog | undefined | null)
+  get expire(): XchandlesExpireActionLog | null
+  set expire(value?: XchandlesExpireActionLog | undefined | null)
+  get initiateUpdate(): XchandlesInitiateUpdateActionLog | null
+  set initiateUpdate(value?: XchandlesInitiateUpdateActionLog | undefined | null)
+  get executeUpdate(): XchandlesExecuteUpdateActionLog | null
+  set executeUpdate(value?: XchandlesExecuteUpdateActionLog | undefined | null)
+  get refund(): XchandlesRefundActionLog | null
+  set refund(value?: XchandlesRefundActionLog | undefined | null)
+  get register(): XchandlesRegisterActionLog | null
+  set register(value?: XchandlesRegisterActionLog | undefined | null)
+  get delegatedState(): XchandlesDelegatedStateActionLog | null
+  set delegatedState(value?: XchandlesDelegatedStateActionLog | undefined | null)
 }
 
 export declare class XchandlesConstants {
@@ -3610,6 +3741,34 @@ export declare class XchandlesConstants {
   set priceSingletonLauncherId(value: Uint8Array)
 }
 
+export declare class XchandlesDelegatedStateActionLog {
+  clone(): XchandlesDelegatedStateActionLog
+  get oldState(): XchandlesRegistryState
+  set oldState(value: XchandlesRegistryState)
+  get newState(): XchandlesRegistryState
+  set newState(value: XchandlesRegistryState)
+}
+
+export declare class XchandlesExecuteUpdateActionLog {
+  clone(): XchandlesExecuteUpdateActionLog
+  get spentHandleSlot(): XchandlesHandleSlotValue
+  set spentHandleSlot(value: XchandlesHandleSlotValue)
+  get spentUpdateSlot(): XchandlesUpdateSlotValue
+  set spentUpdateSlot(value: XchandlesUpdateSlotValue)
+  get createdSlot(): XchandlesHandleSlotValue
+  set createdSlot(value: XchandlesHandleSlotValue)
+  get ownerCoinId(): Buffer
+  set ownerCoinId(value: Uint8Array)
+  get ownerFullPuzzleHash(): Buffer
+  set ownerFullPuzzleHash(value: Uint8Array)
+  get resolvedFullPuzzleHash(): Buffer | null
+  set resolvedFullPuzzleHash(value?: Uint8Array | undefined | null)
+  get ownerInnerPuzzleHash(): Buffer
+  set ownerInnerPuzzleHash(value: Uint8Array)
+  get resolvedInnerPuzzleHash(): Buffer
+  set resolvedInnerPuzzleHash(value: Uint8Array)
+}
+
 export declare class XchandlesExecuteUpdateResult {
   clone(): XchandlesExecuteUpdateResult
   constructor(registryConditions: Array<Program>, oldOwnerConditions: Array<Program>, newOwnerConditions: Array<Program>)
@@ -3619,6 +3778,40 @@ export declare class XchandlesExecuteUpdateResult {
   set oldOwnerConditions(value: Array<Program>)
   get newOwnerConditions(): Array<Program>
   set newOwnerConditions(value: Array<Program>)
+}
+
+export declare class XchandlesExpireActionLog {
+  clone(): XchandlesExpireActionLog
+  get spentSlot(): XchandlesHandleSlotValue
+  set spentSlot(value: XchandlesHandleSlotValue)
+  get createdSlot(): XchandlesHandleSlotValue
+  set createdSlot(value: XchandlesHandleSlotValue)
+  get precommitValue(): XchandlesPrecommitValueLog
+  set precommitValue(value: XchandlesPrecommitValueLog)
+  get totalPrice(): bigint
+  set totalPrice(value: bigint)
+  get registeredTime(): bigint
+  set registeredTime(value: bigint)
+  get ownerFullPuzzleHash(): Buffer
+  set ownerFullPuzzleHash(value: Uint8Array)
+  get resolvedFullPuzzleHash(): Buffer | null
+  set resolvedFullPuzzleHash(value?: Uint8Array | undefined | null)
+  get ownerInnerPuzzleHash(): Buffer
+  set ownerInnerPuzzleHash(value: Uint8Array)
+  get resolvedInnerPuzzleHash(): Buffer
+  set resolvedInnerPuzzleHash(value: Uint8Array)
+}
+
+export declare class XchandlesExtendActionLog {
+  clone(): XchandlesExtendActionLog
+  get spentSlot(): XchandlesHandleSlotValue
+  set spentSlot(value: XchandlesHandleSlotValue)
+  get createdSlot(): XchandlesHandleSlotValue
+  set createdSlot(value: XchandlesHandleSlotValue)
+  get totalPrice(): bigint
+  set totalPrice(value: bigint)
+  get registeredTime(): bigint
+  set registeredTime(value: bigint)
 }
 
 export declare class XchandlesExtendResult {
@@ -3649,6 +3842,7 @@ export declare class XchandlesHandleSlot {
 export declare class XchandlesHandleSlotValue {
   clone(): XchandlesHandleSlotValue
   static new(counter: bigint, handleHash: Uint8Array, leftHandleHash: Uint8Array, rightHandleHash: Uint8Array, expiration: bigint, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array): XchandlesHandleSlotValue
+  valueHash(): Buffer
   get counter(): bigint
   set counter(value: bigint)
   get handleHash(): Buffer
@@ -3661,6 +3855,26 @@ export declare class XchandlesHandleSlotValue {
   set ownerLauncherId(value: Uint8Array)
   get resolvedLauncherId(): Buffer
   set resolvedLauncherId(value: Uint8Array)
+}
+
+export declare class XchandlesInitiateUpdateActionLog {
+  clone(): XchandlesInitiateUpdateActionLog
+  get spentSlot(): XchandlesHandleSlotValue
+  set spentSlot(value: XchandlesHandleSlotValue)
+  get createdHandleSlot(): XchandlesHandleSlotValue
+  set createdHandleSlot(value: XchandlesHandleSlotValue)
+  get createdUpdateSlot(): XchandlesUpdateSlotValue
+  set createdUpdateSlot(value: XchandlesUpdateSlotValue)
+  get initiatorCoinId(): Buffer
+  set initiatorCoinId(value: Uint8Array)
+}
+
+export declare class XchandlesOracleActionLog {
+  clone(): XchandlesOracleActionLog
+  get spentSlot(): XchandlesHandleSlotValue
+  set spentSlot(value: XchandlesHandleSlotValue)
+  get createdSlot(): XchandlesHandleSlotValue
+  set createdSlot(value: XchandlesHandleSlotValue)
 }
 
 export declare class XchandlesPrecommitCoin {
@@ -3708,6 +3922,80 @@ export declare class XchandlesPrecommitValue {
   set useExpirePricing(value: boolean)
 }
 
+export declare class XchandlesPrecommitValueLog {
+  clone(): XchandlesPrecommitValueLog
+  constructor(catMakerHash: Uint8Array, pricingPuzzleHash: Uint8Array, pricingSolution: XchandlesPricingSolution, handle: string, secret: Uint8Array, ownerLauncherId: Uint8Array, resolvedLauncherId: Uint8Array)
+  get catMakerHash(): Buffer
+  set catMakerHash(value: Uint8Array)
+  get pricingPuzzleHash(): Buffer
+  set pricingPuzzleHash(value: Uint8Array)
+  get pricingSolution(): XchandlesPricingSolution
+  set pricingSolution(value: XchandlesPricingSolution)
+  get handle(): string
+  set handle(value: string)
+  get secret(): Buffer
+  set secret(value: Uint8Array)
+  get ownerLauncherId(): Buffer
+  set ownerLauncherId(value: Uint8Array)
+  get resolvedLauncherId(): Buffer
+  set resolvedLauncherId(value: Uint8Array)
+}
+
+export declare class XchandlesPricingSolution {
+  clone(): XchandlesPricingSolution
+  constructor(buyTime: bigint, currentExpiration: bigint, handle: string, numPeriods: bigint)
+  get buyTime(): bigint
+  set buyTime(value: bigint)
+  get currentExpiration(): bigint
+  set currentExpiration(value: bigint)
+  get handle(): string
+  set handle(value: string)
+  get numPeriods(): bigint
+  set numPeriods(value: bigint)
+}
+
+export declare class XchandlesRefundActionLog {
+  clone(): XchandlesRefundActionLog
+  get spentSlot(): XchandlesHandleSlotValue | null
+  set spentSlot(value?: XchandlesHandleSlotValue | undefined | null)
+  get createdSlot(): XchandlesHandleSlotValue | null
+  set createdSlot(value?: XchandlesHandleSlotValue | undefined | null)
+  get precommitValue(): XchandlesPrecommitValueLog
+  set precommitValue(value: XchandlesPrecommitValueLog)
+  get precommittedTotalPrice(): bigint
+  set precommittedTotalPrice(value: bigint)
+  get precommittedRegisteredTime(): bigint
+  set precommittedRegisteredTime(value: bigint)
+}
+
+export declare class XchandlesRegisterActionLog {
+  clone(): XchandlesRegisterActionLog
+  get spentLeftSlot(): XchandlesHandleSlotValue
+  set spentLeftSlot(value: XchandlesHandleSlotValue)
+  get spentRightSlot(): XchandlesHandleSlotValue
+  set spentRightSlot(value: XchandlesHandleSlotValue)
+  get createdLeftSlot(): XchandlesHandleSlotValue
+  set createdLeftSlot(value: XchandlesHandleSlotValue)
+  get createdHandleSlot(): XchandlesHandleSlotValue
+  set createdHandleSlot(value: XchandlesHandleSlotValue)
+  get createdRightSlot(): XchandlesHandleSlotValue
+  set createdRightSlot(value: XchandlesHandleSlotValue)
+  get precommitValue(): XchandlesPrecommitValueLog
+  set precommitValue(value: XchandlesPrecommitValueLog)
+  get totalPrice(): bigint
+  set totalPrice(value: bigint)
+  get registeredTime(): bigint
+  set registeredTime(value: bigint)
+  get ownerFullPuzzleHash(): Buffer
+  set ownerFullPuzzleHash(value: Uint8Array)
+  get resolvedFullPuzzleHash(): Buffer | null
+  set resolvedFullPuzzleHash(value?: Uint8Array | undefined | null)
+  get ownerInnerPuzzleHash(): Buffer
+  set ownerInnerPuzzleHash(value: Uint8Array)
+  get resolvedInnerPuzzleHash(): Buffer
+  set resolvedInnerPuzzleHash(value: Uint8Array)
+}
+
 export declare class XchandlesRegistry {
   clone(): XchandlesRegistry
   coin(): Coin
@@ -3716,8 +4004,12 @@ export declare class XchandlesRegistry {
   constants(): XchandlesConstants
   innerPuzzleHash(): Buffer
   puzzleHash(): Buffer
+  child(): XchandlesRegistry
   pendingCreatedHandleSlots(): Array<XchandlesHandleSlot>
   pendingCreatedUpdateSlots(): Array<XchandlesUpdateSlot>
+  pendingSpentHandleSlots(): Array<XchandlesHandleSlotValue>
+  pendingSpentUpdateSlots(): Array<XchandlesUpdateSlotValue>
+  pendingLogs(): Array<XchandlesActionLog>
   pendingSignature(): Signature
   finishSpend(): XchandlesRegistryFinishedSpendResult
   register(leftSlot: XchandlesHandleSlot, rightSlot: XchandlesHandleSlot, precommitCoin: XchandlesPrecommitCoin, baseHandlePrice: bigint, registrationPeriod: bigint, startTime: bigint, ownerInnerPuzzleHash: Uint8Array, resolvedInnerPuzzleHash: Uint8Array): XchandlesTripleConditionsResult
@@ -3822,6 +4114,7 @@ export declare class XchandlesUpdateSlot {
 export declare class XchandlesUpdateSlotValue {
   clone(): XchandlesUpdateSlotValue
   static new(updateInitiatorCoinId: Uint8Array, minHeight: number, handleHash: Uint8Array, newOwnerLauncherId: Uint8Array, newResolvedLauncherId: Uint8Array): XchandlesUpdateSlotValue
+  valueHash(): Buffer
   get updateInitiatorCoinId(): Buffer
   set updateInitiatorCoinId(value: Uint8Array)
   get minHeight(): number
@@ -3853,6 +4146,8 @@ export declare function encodeOffer(spendBundle: SpendBundle): string
 export declare function fixedMemberHash(config: MemberConfig, fixedPuzzleHash: Uint8Array): Buffer
 
 export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): Restriction
+
+export declare function forceSingletonRecreationRestriction(): Restriction
 
 export declare function fromHex(value: string): Buffer
 
