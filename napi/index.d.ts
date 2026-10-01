@@ -3,7 +3,14 @@
 export declare class Action {
   clone(): Action
   static send(id: Id, puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null): Action
+  static burn(id: Id, amount: bigint, memos?: Program | undefined | null): Action
   static settle(id: Id, notarizedPayment: NotarizedPayment): Action
+  static settleRoyalty(clvm: Clvm, id: Id, launcherId: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyAmount: bigint): Action
+  static createDid(metadata: Program, recoveryListHash: Uint8Array | undefined | null, numVerificationsRequired: bigint, amount: bigint): Action
+  static createEmptyDid(): Action
+  static updateDid(id: Id, newMetadata?: Program | undefined | null, newRecoveryListHash?: Uint8Array | undefined | null, newNumVerificationsRequired?: bigint | undefined | null, removeRecoveryListHash?: boolean | undefined | null): Action
+  static mintOption(creatorPuzzleHash: Uint8Array, seconds: bigint, underlyingId: Id, underlyingAmount: bigint, strikeType: OptionType, amount: bigint): Action
+  static meltSingleton(id: Id, amount: bigint): Action
   static issueCat(tailSpend: Spend, hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static singleIssueCat(hiddenPuzzleHash: Uint8Array | undefined | null, amount: bigint): Action
   static runTail(id: Id, tailSpend: Spend, supplyDelta: Delta): Action
@@ -237,6 +244,18 @@ export declare class AssertSecondsRelative {
   constructor(seconds: bigint)
   get seconds(): bigint
   set seconds(value: bigint)
+}
+
+export declare class AssetInfo {
+  clone(): AssetInfo
+  constructor(clvm: Clvm)
+  insertCat(assetId: Uint8Array, hiddenPuzzleHash?: Uint8Array | undefined | null): void
+  insertNft(launcherId: Uint8Array, metadata: Program, metadataUpdaterPuzzleHash: Uint8Array, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): void
+  insertOption(launcherId: Uint8Array, underlyingCoinId: Uint8Array, underlyingDelegatedPuzzleHash: Uint8Array): void
+  catAssetIds(): Array<Buffer>
+  catHiddenPuzzleHash(assetId: Uint8Array): Buffer | null
+  nftLauncherIds(): Array<Buffer>
+  nftRoyalty(launcherId: Uint8Array): RoyaltyInfo | null
 }
 
 export declare class BlockchainState {
@@ -1900,6 +1919,7 @@ export declare class MemberConfig {
 
 export declare class MemberMemo {
   clone(): MemberMemo
+  parse(ctx: MipsMemoContext): ParsedMember | null
   static k1(clvm: Clvm, publicKey: K1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static r1(clvm: Clvm, publicKey: R1PublicKey, fastForward: boolean, reveal: boolean): MemberMemo
   static bls(clvm: Clvm, publicKey: PublicKey, fastForward: boolean, taproot: boolean, reveal: boolean): MemberMemo
@@ -2139,6 +2159,35 @@ export declare class NotarizedPayment {
   set payments(value: Array<Payment>)
 }
 
+export declare class Offer {
+  clone(): Offer
+  static fromInputSpendBundle(clvm: Clvm, spendBundle: SpendBundle, requestedPayments: RequestedPayments, assetInfo: AssetInfo): Offer
+  static fromSpendBundle(clvm: Clvm, spendBundle: SpendBundle): Offer
+  toSpendBundle(): SpendBundle
+  take(spendBundle: SpendBundle): SpendBundle
+  static nonce(coinIds: Array<Uint8Array>): Buffer
+  requestedPayments(): RequestedPayments
+  assetInfo(): AssetInfo
+  offeredAmounts(): OfferAmounts
+  offeredXch(): Array<Coin>
+  offeredCats(assetId: Uint8Array): Array<Cat>
+  offeredNftLauncherIds(): Array<Buffer>
+  offeredRoyalties(): Array<RoyaltyInfo>
+  requestedRoyalties(): Array<RoyaltyInfo>
+  offeredRoyaltyAmounts(): OfferAmounts
+  requestedRoyaltyAmounts(): OfferAmounts
+}
+
+export declare class OfferAmounts {
+  clone(): OfferAmounts
+  constructor()
+  xch(): bigint
+  setXch(amount: bigint): void
+  assetIds(): Array<Buffer>
+  cat(assetId: Uint8Array): bigint
+  setCat(assetId: Uint8Array, amount: bigint): void
+}
+
 export declare class OfferSecurityCoinDetails {
   clone(): OfferSecurityCoinDetails
   constructor(securityCoin: Coin, securityCoinSk: SecretKey)
@@ -2264,6 +2313,12 @@ export declare class Outputs {
   cat(id: Id): Array<Cat>
   nfts(): Array<Id>
   nft(id: Id): Nft
+  dids(): Array<Id>
+  did(id: Id): Did
+  options(): Array<Id>
+  option(id: Id): OptionContract
+  fee(): bigint
+  reservedFee(): bigint
 }
 
 export declare class P2NextRewardDistributorEpochCoinInfo {
@@ -2377,6 +2432,20 @@ export declare class ParsedDidSpend {
   set solution(value: Program)
 }
 
+export declare class ParsedMember {
+  clone(): ParsedMember
+  asK1(): K1PublicKey | null
+  asR1(): R1PublicKey | null
+  asBls(): PublicKey | null
+  asBlsTaproot(): PublicKey | null
+  asPasskey(): R1PublicKey | null
+  asSingleton(): Buffer | null
+  singletonMode(): number | null
+  asFixedPuzzle(): Buffer | null
+  asCustom(): Program | null
+  fastForward(): boolean
+}
+
 export declare class ParsedNft {
   clone(): ParsedNft
   constructor(nft: Nft, p2Puzzle: Puzzle, p2Solution: Program)
@@ -2417,6 +2486,24 @@ export declare class ParsedOptionInfo {
   set p2Puzzle(value: Puzzle)
 }
 
+export declare class ParsedRestriction {
+  clone(): ParsedRestriction
+  asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
+  asEnforceDelegatedPuzzleWrappers(): Array<WrapperMemo> | null
+  asTimelock(): bigint | null
+}
+
+export declare class ParsedWrapper {
+  clone(): ParsedWrapper
+  isForceCoinAnnouncement(): boolean
+  isForceCoinMessage(): boolean
+  isForceSingletonRecreation(): boolean
+  asPreventConditionOpcode(): number | null
+  isPreventMultipleCreateCoins(): boolean
+  asTimelock(): bigint | null
+  asForce1Of2RestrictedVariable(): Force1Of2RestrictedVariableMemo | null
+}
+
 export declare class Payment {
   clone(): Payment
   constructor(puzzleHash: Uint8Array, amount: bigint, memos?: Program | undefined | null)
@@ -2453,6 +2540,7 @@ export declare class PendingSpend {
   conditions(): Array<Program>
   asXch(): Coin | null
   asCat(): Cat | null
+  isRevocation(): boolean
   asDid(): Did | null
   asNft(): Nft | null
   asOption(): OptionContract | null
@@ -2493,6 +2581,7 @@ export declare class Program {
   toPair(): Pair | null
   puzzle(): Puzzle
   parseNftMetadata(): NftMetadata | null
+  parseMipsMemo(): MipsMemo | null
   parseHandleNftMetadata(): HandleNftMetadata | null
   parseRemark(): Remark | null
   parseAggSigParent(): AggSigParent | null
@@ -2707,6 +2796,25 @@ export declare class Remark {
   set rest(value: Program)
 }
 
+export declare class RequestedPayments {
+  clone(): RequestedPayments
+  constructor(clvm: Clvm)
+  addXch(notarizedPayment: NotarizedPayment): void
+  addCat(assetId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  addNft(launcherId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  addOption(launcherId: Uint8Array, notarizedPayment: NotarizedPayment): void
+  xch(): Array<NotarizedPayment>
+  catAssetIds(): Array<Buffer>
+  cats(assetId: Uint8Array): Array<NotarizedPayment>
+  nftLauncherIds(): Array<Buffer>
+  nfts(launcherId: Uint8Array): Array<NotarizedPayment>
+  optionLauncherIds(): Array<Buffer>
+  options(launcherId: Uint8Array): Array<NotarizedPayment>
+  amounts(): OfferAmounts
+  actions(): Array<Action>
+  assertions(assetInfo: AssetInfo): Array<Program>
+}
+
 export declare class ReserveFee {
   clone(): ReserveFee
   constructor(amount: bigint)
@@ -2749,6 +2857,7 @@ export declare class Restriction {
 
 export declare class RestrictionMemo {
   clone(): RestrictionMemo
+  parse(ctx: MipsMemoContext): ParsedRestriction | null
   static force1Of2RestrictedVariable(clvm: Clvm, leftSideSubtreeHash: Uint8Array, nonce: number, memberValidatorListHash: Uint8Array, delegatedPuzzleValidatorListHash: Uint8Array): RestrictionMemo
   static enforceDelegatedPuzzleWrappers(clvm: Clvm, wrapperMemos: Array<WrapperMemo>): RestrictionMemo
   static timelock(clvm: Clvm, seconds: bigint, reveal: boolean): RestrictionMemo
@@ -3309,6 +3418,17 @@ export declare class RoundTimeInfo {
   set epochEnd(value: bigint)
 }
 
+export declare class RoyaltyInfo {
+  clone(): RoyaltyInfo
+  constructor(launcherId: Uint8Array, puzzleHash: Uint8Array, basisPoints: number)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get basisPoints(): number
+  set basisPoints(value: number)
+}
+
 export declare class RpcClient {
   clone(): RpcClient
   constructor(coinsetUrl: string)
@@ -3461,9 +3581,14 @@ export declare class SpendBundle {
 export declare class Spends {
   clone(): Spends
   constructor(clvm: Clvm, changePuzzleHash: Uint8Array)
+  static withSeparateChangePuzzleHash(clvm: Clvm, intermediatePuzzleHash: Uint8Array, changePuzzleHash: Uint8Array): Spends
   addXch(coin: Coin): void
   addCat(cat: Cat): void
+  addCatForRevocation(cat: Cat): void
+  addOfferedCoins(offer: Offer): void
+  addDid(did: Did): void
   addNft(nft: Nft): void
+  addOption(option: OptionContract): void
   p2PuzzleHashes(): Array<Buffer>
   nonSettlementCoinIds(): Array<Buffer>
   addOptionalCondition(condition: Program): void
@@ -3473,7 +3598,7 @@ export declare class Spends {
   selectedAssetIds(): Array<Buffer>
   selectedCatAmount(assetId: Uint8Array): bigint
   apply(actions: Array<Action>): Deltas
-  prepare(deltas: Deltas): FinishedSpends
+  prepare(deltas: Deltas, relation?: Relation | undefined | null): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {
@@ -3690,6 +3815,7 @@ export type VDFProof = VdfProof
 
 export declare class WrapperMemo {
   clone(): WrapperMemo
+  parse(ctx: MipsMemoContext): ParsedWrapper | null
   static preventVaultSideEffects(clvm: Clvm, reveal: boolean): Array<WrapperMemo>
   static forceCoinAnnouncement(clvm: Clvm): WrapperMemo
   static forceCoinMessage(clvm: Clvm): WrapperMemo
@@ -4133,6 +4259,12 @@ export declare function bulletinPuzzleHash(hiddenPuzzleHash: Uint8Array): Buffer
 
 export declare function bytesEqual(lhs: Uint8Array, rhs: Uint8Array): boolean
 
+export declare function calculateRoyaltyPayments(clvm: Clvm, tradePrices: OfferAmounts, royalties: Array<RoyaltyInfo>): RequestedPayments
+
+export declare function calculateTradePriceAmounts(amounts: OfferAmounts, royaltyNftCount: number): OfferAmounts
+
+export declare function calculateTradePrices(tradePriceAmounts: OfferAmounts, assetInfo: AssetInfo): Array<TradePrice>
+
 export declare function catPuzzleHash(assetId: Uint8Array, innerPuzzleHash: Uint8Array): Buffer
 
 export declare function curryTreeHash(program: Uint8Array, args: Array<Uint8Array>): Buffer
@@ -4168,6 +4300,13 @@ export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare const enum Relation {
+  Unrelated = 0,
+  AssertConcurrent = 1,
+  CoinAnnouncementRing = 2,
+  CoinAnnouncementHub = 3
+}
 
 export declare const enum RestrictionKind {
   MemberCondition = 0,

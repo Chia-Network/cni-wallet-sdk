@@ -278,19 +278,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
-name = "bigdecimal"
-version = "0.4.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a22f228ab7a1b23027ccc6c350b72868017af7ea8356fbdf19f8d991c690013"
-dependencies = [
- "autocfg",
- "libm",
- "num-bigint",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "binascii"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -744,7 +731,6 @@ name = "chia-sdk-driver"
 version = "0.36.0"
 dependencies = [
  "anyhow",
- "bigdecimal",
  "bip39",
  "chia-bls 0.36.1",
  "chia-consensus",
@@ -767,6 +753,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "indexmap",
+ "itertools 0.13.0",
  "num-bigint",
  "rand 0.9.2",
  "rand_chacha 0.9.0",
@@ -1243,7 +1230,7 @@ checksum = "3f88a43d011fc4a6876cb7344703e297c71dda42494fee094d5f7c76bf13f746"
 
 [[package]]
 name = "cni-wallet-sdk-wasm"
-version = "0.34.0"
+version = "0.35.0"
 dependencies = [
  "bindy",
  "bindy-macro",
