@@ -11,6 +11,7 @@
 mod action_layer;
 mod action_system;
 mod address;
+mod auction;
 mod bls;
 mod clear_signing;
 mod clvm;
@@ -27,6 +28,7 @@ mod merkle_tree;
 mod mips;
 mod mnemonic;
 mod offer;
+mod partial_offer;
 mod program;
 mod puzzle;
 mod rpc;
@@ -37,6 +39,7 @@ mod utils;
 pub use action_layer::*;
 pub use action_system::*;
 pub use address::*;
+pub use auction::*;
 pub use bls::*;
 pub use clear_signing::*;
 pub use clvm::*;
@@ -52,6 +55,7 @@ pub use merkle_tree::*;
 pub use mips::*;
 pub use mnemonic::*;
 pub use offer::*;
+pub use partial_offer::*;
 pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
@@ -83,24 +87,26 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    Bulletin, BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
+    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, Bulletin,
+    BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
     CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
     Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
     OptionInfo, OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
-    P2ConditionsOrSingletonVersion, P2ParentCoin, RewardDistributorAddEntryActionLog,
-    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
-    RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,
-    RewardDistributorNewEpochActionLog, RewardDistributorNftStakeEntry,
-    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
-    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
-    RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
-    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, RoyaltyInfo,
-    StreamedAsset, StreamingPuzzleInfo, UriKind, VaultInfo, VaultOutput, VaultVersion,
-    XchandlesConstants, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog,
-    XchandlesExpireActionLog, XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog,
-    XchandlesOracleActionLog, XchandlesPrecommitValueLog, XchandlesRefundActionLog,
-    XchandlesRegisterActionLog, XchandlesRegistryState,
+    P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
+    RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
+    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
+    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
+    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
+    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
+    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
+    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
+    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion, XchandlesConstants,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
+    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
+    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
+    XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -108,6 +114,7 @@ pub use chia_sdk_types::{
     MerkleProof,
     conditions::TradePrice,
     puzzles::{
+        AuctionBid, AuctionBpsPayment, AuctionPayments, AuctionState, AuctionTimings,
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,
@@ -120,4 +127,4 @@ pub use chia_protocol::{
     CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };
 
-pub(crate) use convert::{AsProgram, AsPtr};
+pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};
