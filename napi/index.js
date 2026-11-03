@@ -89,8 +89,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-android-arm64')
         const bindingPackageVersion = require('cni-wallet-sdk-android-arm64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -105,8 +105,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-android-arm-eabi')
         const bindingPackageVersion = require('cni-wallet-sdk-android-arm-eabi/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -126,8 +126,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-win32-x64-gnu')
           const bindingPackageVersion = require('cni-wallet-sdk-win32-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -142,8 +142,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-win32-x64-msvc')
           const bindingPackageVersion = require('cni-wallet-sdk-win32-x64-msvc/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -159,8 +159,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-win32-ia32-msvc')
         const bindingPackageVersion = require('cni-wallet-sdk-win32-ia32-msvc/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -175,8 +175,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-win32-arm64-msvc')
         const bindingPackageVersion = require('cni-wallet-sdk-win32-arm64-msvc/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -194,8 +194,8 @@ function requireNative() {
     try {
       const binding = require('cni-wallet-sdk-darwin-universal')
       const bindingPackageVersion = require('cni-wallet-sdk-darwin-universal/package.json').version
-      if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-        throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+      if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+        throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
       return binding
     } catch (e) {
@@ -210,8 +210,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-darwin-x64')
         const bindingPackageVersion = require('cni-wallet-sdk-darwin-x64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -226,8 +226,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-darwin-arm64')
         const bindingPackageVersion = require('cni-wallet-sdk-darwin-arm64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -246,8 +246,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-freebsd-x64')
         const bindingPackageVersion = require('cni-wallet-sdk-freebsd-x64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -262,8 +262,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-freebsd-arm64')
         const bindingPackageVersion = require('cni-wallet-sdk-freebsd-arm64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -283,8 +283,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-x64-musl')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-x64-musl/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -299,8 +299,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-x64-gnu')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -317,8 +317,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-arm64-musl')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-arm64-musl/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -333,8 +333,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-arm64-gnu')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-arm64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -351,8 +351,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-arm-musleabihf')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-arm-musleabihf/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -367,8 +367,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-arm-gnueabihf')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-arm-gnueabihf/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -385,8 +385,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-loong64-musl')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-loong64-musl/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -401,8 +401,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-loong64-gnu')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-loong64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -419,8 +419,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-riscv64-musl')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-riscv64-musl/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -435,8 +435,8 @@ function requireNative() {
         try {
           const binding = require('cni-wallet-sdk-linux-riscv64-gnu')
           const bindingPackageVersion = require('cni-wallet-sdk-linux-riscv64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -452,8 +452,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-linux-ppc64-gnu')
         const bindingPackageVersion = require('cni-wallet-sdk-linux-ppc64-gnu/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -468,8 +468,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-linux-s390x-gnu')
         const bindingPackageVersion = require('cni-wallet-sdk-linux-s390x-gnu/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -488,8 +488,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-openharmony-arm64')
         const bindingPackageVersion = require('cni-wallet-sdk-openharmony-arm64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -504,8 +504,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-openharmony-x64')
         const bindingPackageVersion = require('cni-wallet-sdk-openharmony-x64/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -520,8 +520,8 @@ function requireNative() {
       try {
         const binding = require('cni-wallet-sdk-openharmony-arm')
         const bindingPackageVersion = require('cni-wallet-sdk-openharmony-arm/package.json').version
-        if (bindingPackageVersion !== '0.39.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        if (bindingPackageVersion !== '0.40.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -661,8 +661,8 @@ if (!nativeBinding || forceWasi) {
       if (!candidateFailed) {
         if (process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           const bindingPackageVersion = require('cni-wallet-sdk-wasm32-wasi/package.json').version
-          if (bindingPackageVersion !== '0.39.0') {
-            throw new Error(`WASI binding package version mismatch, expected 0.39.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          if (bindingPackageVersion !== '0.40.0') {
+            throw new Error(`WASI binding package version mismatch, expected 0.40.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
         }
         wasiBinding = require('cni-wallet-sdk-wasm32-wasi')
@@ -905,6 +905,9 @@ module.exports.FullNodeSimulatorBlockEvent = nativeBinding.FullNodeSimulatorBloc
 module.exports.FullNodeSimulatorEvent = nativeBinding.FullNodeSimulatorEvent
 module.exports.FullNodeSimulatorReorgEvent = nativeBinding.FullNodeSimulatorReorgEvent
 module.exports.FullNodeSimulatorServer = nativeBinding.FullNodeSimulatorServer
+module.exports.Fusion = nativeBinding.Fusion
+module.exports.FusionSwap = nativeBinding.FusionSwap
+module.exports.FusionUnlock = nativeBinding.FusionUnlock
 module.exports.GetBlockRecordResponse = nativeBinding.GetBlockRecordResponse
 module.exports.GetBlockRecordsResponse = nativeBinding.GetBlockRecordsResponse
 module.exports.GetBlockResponse = nativeBinding.GetBlockResponse
@@ -928,6 +931,7 @@ module.exports.K1PublicKey = nativeBinding.K1PublicKey
 module.exports.K1SecretKey = nativeBinding.K1SecretKey
 module.exports.K1Signature = nativeBinding.K1Signature
 module.exports.LaunchedAuction = nativeBinding.LaunchedAuction
+module.exports.LaunchedFusion = nativeBinding.LaunchedFusion
 module.exports.LineageProof = nativeBinding.LineageProof
 module.exports.LinkedOffer = nativeBinding.LinkedOffer
 module.exports.MedievalVault = nativeBinding.MedievalVault
@@ -987,6 +991,7 @@ module.exports.ParsedChild = nativeBinding.ParsedChild
 module.exports.ParsedDid = nativeBinding.ParsedDid
 module.exports.ParsedDidInfo = nativeBinding.ParsedDidInfo
 module.exports.ParsedDidSpend = nativeBinding.ParsedDidSpend
+module.exports.ParsedFusionChild = nativeBinding.ParsedFusionChild
 module.exports.ParsedMember = nativeBinding.ParsedMember
 module.exports.ParsedMemos = nativeBinding.ParsedMemos
 module.exports.ParsedNft = nativeBinding.ParsedNft
@@ -1085,6 +1090,9 @@ module.exports.Spend = nativeBinding.Spend
 module.exports.SpendBundle = nativeBinding.SpendBundle
 module.exports.Spends = nativeBinding.Spends
 module.exports.SpendSettlementCatsResult = nativeBinding.SpendSettlementCatsResult
+module.exports.Splitter = nativeBinding.Splitter
+module.exports.SplitterPayout = nativeBinding.SplitterPayout
+module.exports.SplitterShare = nativeBinding.SplitterShare
 module.exports.StreamedAsset = nativeBinding.StreamedAsset
 module.exports.StreamedAssetParsingResult = nativeBinding.StreamedAssetParsingResult
 module.exports.StreamingPuzzleInfo = nativeBinding.StreamingPuzzleInfo
@@ -1166,6 +1174,8 @@ module.exports.fixedMemberHash = nativeBinding.fixedMemberHash
 module.exports.force1Of2Restriction = nativeBinding.force1Of2Restriction
 module.exports.forceSingletonRecreationRestriction = nativeBinding.forceSingletonRecreationRestriction
 module.exports.fromHex = nativeBinding.fromHex
+module.exports.FusionDirection = nativeBinding.FusionDirection
+module.exports.fusionHint = nativeBinding.fusionHint
 module.exports.generateBytes = nativeBinding.generateBytes
 module.exports.k1MemberHash = nativeBinding.k1MemberHash
 module.exports.mOfNHash = nativeBinding.mOfNHash

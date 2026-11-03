@@ -999,6 +999,7 @@ export declare class Clvm {
   mintNfts(parentCoinId: Uint8Array, nftMints: Array<NftMint>): MintedNfts
   spendNft(nft: Nft, innerSpend: Spend): Nft
   launchAuction(parentCoinId: Uint8Array, settings: AuctionSettings, reserve: AuctionReserve, nft: Nft): LaunchedAuction
+  launchFusion(parentCoinId: Uint8Array, sideA: Array<Uint8Array>, sideB: Array<Uint8Array>): LaunchedFusion
   mintDatastore(parentCoinId: Uint8Array, metadata: DatastoreMetadata, ownerPuzzleHash: Uint8Array, delegatedPuzzles: Array<DelegatedPuzzle>): MintedDatastore
   datastoreFromSpend(parentSpend: CoinSpend, delegatedPuzzles?: Array<DelegatedPuzzle> | undefined | null): Datastore | null
   createEveDid(parentCoinId: Uint8Array, p2PuzzleHash: Uint8Array): CreatedDid
@@ -1184,6 +1185,9 @@ export declare class Clvm {
   revocableCatMaker(): Program
   xchCatMaker(): Program
   partialOffer(): Program
+  splitter(): Program
+  fusionSingleton(): Program
+  p2Fusion(): Program
   auctionBidAction(): Program
   auctionEndAction(): Program
   auctionCancelAction(): Program
@@ -1512,6 +1516,12 @@ export declare class Constants {
   static xchCatMakerHash(): Buffer
   static partialOffer(): Buffer
   static partialOfferHash(): Buffer
+  static splitter(): Buffer
+  static splitterHash(): Buffer
+  static fusionSingleton(): Buffer
+  static fusionSingletonHash(): Buffer
+  static p2Fusion(): Buffer
+  static p2FusionHash(): Buffer
   static auctionBidAction(): Buffer
   static auctionBidActionHash(): Buffer
   static auctionEndAction(): Buffer
@@ -1778,6 +1788,7 @@ export declare class EverythingWithSingletonIssuance {
 export declare class FinishedSpends {
   clone(): FinishedSpends
   pendingSpends(): Array<PendingSpend>
+  unplacedConditions(): Array<Program>
   insert(coinId: Uint8Array, spend: Spend): void
   spend(): Outputs
 }
@@ -1957,6 +1968,48 @@ export declare class FullNodeSimulatorServer {
   close(): void
   get url(): string
   set url(value: string)
+}
+
+export declare class Fusion {
+  clone(): Fusion
+  static parseLauncher(launcherCoin: Coin, launcherSolution: Program): Fusion | null
+  static parseChild(parentCoin: Coin, parentPuzzle: Program, parentSolution: Program): ParsedFusionChild | null
+  p2PuzzleHash(): Buffer
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  lockNftConditions(clvm: Clvm, nft: Nft): Array<Program>
+  swap(clvm: Clvm, direction: FusionDirection, offered: Array<Nft>, unlocks: Array<FusionUnlock>, offerNonce: Uint8Array): FusionSwap
+  takeOffer(offer: Offer, unlocks: Array<Nft>): FusionSwap
+  constructor(coin: Coin, proof: Proof, launcherId: Uint8Array, sideA: Array<Uint8Array>, sideB: Array<Uint8Array>)
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): Proof
+  set proof(value: Proof)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get sideA(): Array<Buffer>
+  set sideA(value: Array<Uint8Array>)
+  get sideB(): Array<Buffer>
+  set sideB(value: Array<Uint8Array>)
+}
+
+export declare class FusionSwap {
+  clone(): FusionSwap
+  get fusion(): Fusion
+  set fusion(value: Fusion)
+  get locked(): Array<Nft>
+  set locked(value: Array<Nft>)
+  get unlocked(): Array<Nft>
+  set unlocked(value: Array<Nft>)
+}
+
+export declare class FusionUnlock {
+  clone(): FusionUnlock
+  constructor(nft: Nft, p2PuzzleHash: Uint8Array)
+  get nft(): Nft
+  set nft(value: Nft)
+  get p2PuzzleHash(): Buffer
+  set p2PuzzleHash(value: Uint8Array)
 }
 
 export declare class GetBlockRecordResponse {
@@ -2202,6 +2255,14 @@ export declare class LaunchedAuction {
   clone(): LaunchedAuction
   get auction(): Auction
   set auction(value: Auction)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+
+export declare class LaunchedFusion {
+  clone(): LaunchedFusion
+  get fusion(): Fusion
+  set fusion(value: Fusion)
   get parentConditions(): Array<Program>
   set parentConditions(value: Array<Program>)
 }
@@ -2901,6 +2962,14 @@ export declare class ParsedDidSpend {
   set solution(value: Program)
 }
 
+export declare class ParsedFusionChild {
+  clone(): ParsedFusionChild
+  get fusion(): Fusion
+  set fusion(value: Fusion)
+  get direction(): FusionDirection
+  set direction(value: FusionDirection)
+}
+
 export declare class ParsedMember {
   clone(): ParsedMember
   asK1(): K1PublicKey | null
@@ -3301,6 +3370,7 @@ export declare class Puzzle {
   parseChildClawbacks(parentSolution: Program): Array<Clawback> | null
   parseBulletin(coin: Coin, solution: Program): ParsedBulletin | null
   parseChildP2Parent(parentCoin: Coin, parentSolution: Program): P2ParentCoinChildParseResult | null
+  parseSplitter(): Splitter | null
   parsePartialOffer(coin: Coin, solution: Program, requestedAsset?: PartialOfferAsset | undefined | null): ParsedPartialOffer | null
   parseChildPartialOffer(parentCoin: Coin, parentSolution: Program, requestedAsset?: PartialOfferAsset | undefined | null): PartialOffer | null
   constructor(puzzleHash: Uint8Array, program: Program, modHash: Uint8Array, args?: Program | undefined | null)
@@ -4202,6 +4272,7 @@ export declare class Spends {
   addOptionalCondition(condition: Program): void
   addRequiredCondition(condition: Program): void
   disableSettlementAssertions(): void
+  returnUnplacedConditions(): void
   selectedXchAmount(): bigint
   selectedAssetIds(): Array<Buffer>
   selectedCatAmount(assetId: Uint8Array): bigint
@@ -4216,6 +4287,35 @@ export declare class SpendSettlementCatsResult {
   set createdCats(value: Array<Cat>)
   get securityConditions(): Array<Program>
   set securityConditions(value: Array<Program>)
+}
+
+export declare class Splitter {
+  clone(): Splitter
+  constructor(shares: Array<SplitterShare>)
+  shares(): Array<SplitterShare>
+  totalShares(): bigint
+  puzzleHash(): Buffer
+  payouts(amount: bigint): Array<SplitterPayout>
+  static announcementId(coinId: Uint8Array): Buffer
+  innerSpend(clvm: Clvm, amount: bigint): Spend
+}
+
+export declare class SplitterPayout {
+  clone(): SplitterPayout
+  constructor(puzzleHash: Uint8Array, amount: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get amount(): bigint
+  set amount(value: bigint)
+}
+
+export declare class SplitterShare {
+  clone(): SplitterShare
+  constructor(puzzleHash: Uint8Array, share: bigint)
+  get puzzleHash(): Buffer
+  set puzzleHash(value: Uint8Array)
+  get share(): bigint
+  set share(value: bigint)
 }
 
 export declare class StreamedAsset {
@@ -4997,6 +5097,13 @@ export declare function force1Of2Restriction(leftSideSubtreeHash: Uint8Array, no
 export declare function forceSingletonRecreationRestriction(): Restriction
 
 export declare function fromHex(value: string): Buffer
+
+export declare const enum FusionDirection {
+  Fuse = 0,
+  Defuse = 1,
+}
+
+export declare function fusionHint(): Buffer
 
 export declare function generateBytes(bytes: number): Buffer
 

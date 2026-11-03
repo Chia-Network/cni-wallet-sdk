@@ -14,22 +14,23 @@ use chia_sdk_types::{
     Condition, Conditions, MessageFlags, MessageSide, Mod, announcement_id,
     conditions::TradePrice,
     puzzles::{
-        EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, RevocationArgs,
-        SettlementPayment,
+        EverythingWithSingletonTailArgs, EverythingWithSingletonTailSolution, P2OneOfManySolution,
+        RevocationArgs, SettlementPayment,
     },
     tree_hash_notarized_payment,
 };
-use clvm_traits::clvm_list;
+use clvm_traits::{clvm_list, clvm_quote};
 use clvm_utils::{ToTreeHash, tree_hash};
+use clvmr::NodePtr;
 use rstest::rstest;
 
 use crate::{
     Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
     ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
-    DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, LinkedOffer, Nft,
+    DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, Layer, LinkedOffer, Nft,
     OfferPreSplitInfo, P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset,
     Puzzle, Reveals, SingleCatSpend, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferNftById, TransferType, VaultOutput, iter_final_children,
+    TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction, iter_final_children,
     parse_vault_transaction,
 };
 
@@ -1433,10 +1434,15 @@ fn test_clear_signing_spend_clawback(
     bob.p2_puzzles
         .insert(clawback.tree_hash(), TestP2Puzzle::Clawback(clawback));
 
-    let result = bob.spend(
+    let actions = [Action::send(id, alice.p2_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+    bob.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let result = bob.custom_spend(
         &mut sim,
         &mut ctx,
-        &[Action::send(id, alice.p2_puzzle_hash, 1, Memos::None)],
+        &actions,
+        spends,
+        Conditions::new().assert_seconds_absolute(clawback.seconds),
     )?;
 
     let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
@@ -1550,6 +1556,1247 @@ fn test_clear_signing_unrevealed_clawback() -> Result<()> {
         result.unwrap_err(),
         DriverError::InvalidLinkedCustody
     ));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::expiry_asserted(Some(1000))]
+#[case::before_expiry_asserted(Some(999))]
+#[case::expiry_unasserted(None)]
+fn test_clear_signing_push_through(#[case] earliest_time: Option<u64>) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    sim.set_next_timestamp(2000)?;
+
+    // The vault only pays the fee, and asserts the push-through spend that nobody needs to sign.
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let mut vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    if let Some(earliest_time) = earliest_time {
+        vault_conditions = vault_conditions.assert_seconds_absolute(earliest_time);
+    }
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.reserved_fee, 1);
+
+    // Unless the vault asserts that the clawback has expired, the clawback coin could be clawed back to the sender
+    // instead, so the push-through can't be shown.
+    if earliest_time.is_none_or(|time| time < clawback.seconds) {
+        assert_eq!(tx.spends.len(), 1);
+        assert!(tx.spends[0].clawback.is_none());
+        return Ok(());
+    }
+
+    assert_eq!(tx.spends.len(), 2);
+
+    let spend = &tx.spends[1];
+    check_asset(&spend.asset, None, None, 1);
+    assert_eq!(spend.asset.coin(), clawback_coin);
+    assert_eq!(
+        spend.clawback,
+        Some(ClawbackInfo::new(clawback, ClawbackPath::PushThrough))
+    );
+    assert!(matches!(spend.custody, CustodyInfo::DelegatedConditions(_)));
+    assert_eq!(spend.children.len(), 1);
+
+    let child = &spend.children[0];
+    check_asset(&child.asset, None, None, 1);
+    assert_eq!(child.memos.clawback, None);
+    assert_eq!(child.memos.p2_puzzle_hash, bob.p2_puzzle_hash);
+    assert_eq!(child.transfer_type, TransferType::Sent);
+
+    let xch = xch_asset_flow(&tx.asset_flows);
+    assert_eq!(xch.unaccounted_amount, 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_partially_expired() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let expired = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let unexpired = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 2000, 1, true);
+
+    for clawback in [expired, unexpired] {
+        let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+        let _ = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+        )?;
+    }
+
+    let expired_coin = sim.unspent_coins(expired.tree_hash().into(), false)[0];
+    let unexpired_coin = sim.unspent_coins(unexpired.tree_hash().into(), false)[0];
+
+    sim.set_next_timestamp(3000)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(expired_coin.coin_id())
+        .assert_concurrent_spend(unexpired_coin.coin_id())
+        .assert_seconds_absolute(expired.seconds);
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    expired.push_through_coin_spend(&mut ctx, expired_coin)?;
+    unexpired.push_through_coin_spend(&mut ctx, unexpired_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(expired);
+    reveals.reveal_clawback(unexpired);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    // Only the clawback that the vault asserted the expiry of can be shown.
+    assert_eq!(tx.spends.len(), 2);
+    assert_eq!(tx.spends[1].asset.coin(), expired_coin);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_replaceable_expiry() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    // The receiver path of this clawback claims to assert the expiry, but it could be replaced with the sender path.
+    let receiver_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_seconds_absolute(clawback.seconds)
+    ))?;
+    let decoy = ClawbackV2::new(
+        alice.p2_puzzle_hash,
+        ctx.tree_hash(receiver_puzzle).into(),
+        5000,
+        1,
+        false,
+    );
+
+    let actions = [Action::send(
+        Id::Xch,
+        decoy.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let decoy_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        decoy.tree_hash().into(),
+        1,
+    );
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(decoy_coin.coin_id());
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let decoy_spend = decoy.receiver_spend(&mut ctx, Spend::new(receiver_puzzle, NodePtr::NIL))?;
+    ctx.spend(decoy_coin, decoy_spend)?;
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    reveals.reveal_clawback(decoy);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert!(
+        tx.spends
+            .iter()
+            .all(|spend| ![clawback_coin, decoy_coin].contains(&spend.asset.coin()))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_ephemeral_clawback() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    sim.set_next_timestamp(2000)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let actions = [Action::send(
+        Id::Xch,
+        clawback.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let clawback_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        clawback.tree_hash().into(),
+        1,
+    );
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 2);
+    assert_eq!(tx.spends[1].asset.coin(), clawback_coin);
+    assert_eq!(tx.spends[1].children.len(), 1);
+    assert_eq!(
+        tx.spends[1].children[0].memos.p2_puzzle_hash,
+        bob.p2_puzzle_hash
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_spent_child() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    // The receiver's puzzle sends the clawback's value on to Bob.
+    let receiver_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+        bob.p2_puzzle_hash,
+        1,
+        Memos::None
+    )))?;
+    let receiver_puzzle_hash: Bytes32 = ctx.tree_hash(receiver_puzzle).into();
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, receiver_puzzle_hash, 1000, 1, false);
+    let memos = ctx.memos(&clvm_list!(receiver_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+    let child_coin = Coin::new(clawback_coin.coin_id(), receiver_puzzle_hash, 1);
+
+    sim.set_next_timestamp(2000)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(child_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    ctx.spend(child_coin, Spend::new(receiver_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 3);
+    assert_eq!(tx.spends[1].asset.coin(), clawback_coin);
+    assert_eq!(tx.spends[2].asset.coin(), child_coin);
+    assert_eq!(
+        tx.spends[2].children[0].memos.p2_puzzle_hash,
+        bob.p2_puzzle_hash
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_amount_mismatch() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    // The clawback's amount isn't committed to by the coin, which has more value than the push-through outputs.
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 2, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    sim.set_next_timestamp(2000)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 1);
+    assert!(tx.spends[0].clawback.is_none());
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_wrong_puzzle() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    // The merkle proof is for the push-through path, but the revealed puzzle isn't.
+    let merkle_tree = clawback.merkle_tree();
+    let merkle_proof = merkle_tree
+        .proof(clawback.push_through_path_hash())
+        .expect("merkle proof should exist");
+    let puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let spend = clawback.into_1_of_n().construct_spend(
+        &mut ctx,
+        P2OneOfManySolution::new(merkle_proof, puzzle, NodePtr::NIL),
+    )?;
+    ctx.spend(clawback_coin, spend)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    assert!(matches!(tx, Err(DriverError::InvalidMerkleProof)));
+
+    Ok(())
+}
+
+/// Mints a vault and locks one of its coins in a clawback to Bob.
+fn push_through_setup(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+) -> Result<(TestVault, ClawbackV2, Coin)> {
+    let alice = TestVault::mint(sim, ctx, 3)?;
+    let bob = TestVault::mint(sim, ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, true);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        sim,
+        ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let clawback_coin = sim.unspent_coins(clawback.tree_hash().into(), false)[0];
+
+    Ok((alice, clawback, clawback_coin))
+}
+
+/// Creates a clawback whose receiver is a quoted puzzle, so that its spend isn't bound to a vault message.
+fn decoy_clawback(
+    ctx: &mut SpendContext,
+    conditions: Conditions,
+    seconds: u64,
+) -> Result<(ClawbackV2, NodePtr)> {
+    let puzzle = ctx.alloc(&clvm_quote!(conditions))?;
+    let sender_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        ctx.tree_hash(puzzle).into(),
+        seconds,
+        1,
+        false,
+    );
+    Ok((clawback, puzzle))
+}
+
+#[test]
+fn test_clear_signing_replaceable_spend_chain_asserts_expiry() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
+
+    // A coin that really would assert the expiry, but only a replaceable spend asserts that it's spent.
+    let expiry_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_seconds_absolute(clawback.seconds)
+    ))?;
+    let expiry_puzzle_hash: Bytes32 = ctx.tree_hash(expiry_puzzle).into();
+
+    let actions = [Action::send(Id::Xch, expiry_puzzle_hash, 1, Memos::None)];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let expiry_coin = Coin::new(parent, expiry_puzzle_hash, 1);
+
+    let (decoy, decoy_puzzle) = decoy_clawback(
+        &mut ctx,
+        Conditions::new().assert_concurrent_spend(expiry_coin.coin_id()),
+        5000,
+    )?;
+
+    // The decoy has to be a child of a verified spend, so it's created by a second output.
+    let actions = [
+        actions[0].clone(),
+        Action::send(Id::Xch, decoy.tree_hash().into(), 1, Memos::None),
+    ];
+    let decoy_coin = Coin::new(parent, decoy.tree_hash().into(), 1);
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(decoy_coin.coin_id());
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let decoy_spend = decoy.receiver_spend(&mut ctx, Spend::new(decoy_puzzle, NodePtr::NIL))?;
+    ctx.spend(decoy_coin, decoy_spend)?;
+    ctx.spend(expiry_coin, Spend::new(expiry_puzzle, NodePtr::NIL))?;
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    reveals.reveal_clawback(decoy);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert!(
+        tx.spends
+            .iter()
+            .all(|spend| ![clawback_coin, decoy_coin, expiry_coin].contains(&spend.asset.coin()))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_replaceable_spend_asserts_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
+
+    let (decoy, decoy_puzzle) = decoy_clawback(
+        &mut ctx,
+        Conditions::new()
+            .assert_concurrent_spend(clawback_coin.coin_id())
+            .reserve_fee(1),
+        5000,
+    )?;
+
+    let actions = [Action::send(
+        Id::Xch,
+        decoy.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let decoy_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        decoy.tree_hash().into(),
+        1,
+    );
+
+    // The vault truthfully asserts the expiry, but it doesn't assert that the clawback is spent.
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(decoy_coin.coin_id())
+        .assert_seconds_absolute(clawback.seconds);
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let decoy_spend = decoy.receiver_spend(&mut ctx, Spend::new(decoy_puzzle, NodePtr::NIL))?;
+    ctx.spend(decoy_coin, decoy_spend)?;
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    reveals.reveal_clawback(decoy);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.reserved_fee, 0);
+    assert!(
+        tx.spends
+            .iter()
+            .all(|spend| spend.asset.coin() != clawback_coin)
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_replaceable_spend_asserts_expiration() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+
+    // The vault claws back a coin, which relies on the transaction expiring before the clawback does.
+    let refund_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().create_coin(
+        alice.p2_puzzle_hash,
+        1,
+        Memos::None
+    )))?;
+    let (clawback, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(refund_puzzle).into(),
+        clawback.receiver_puzzle_hash,
+        clawback.seconds,
+        clawback.amount,
+        clawback.hinted,
+    );
+
+    // Only a replaceable spend says that the transaction expires in time.
+    let (decoy, decoy_puzzle) = decoy_clawback(
+        &mut ctx,
+        Conditions::new().assert_before_seconds_absolute(500),
+        5000,
+    )?;
+
+    let actions = [
+        Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None),
+        Action::send(Id::Xch, decoy.tree_hash().into(), 1, Memos::None),
+    ];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+    let decoy_coin = Coin::new(parent, decoy.tree_hash().into(), 1);
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(decoy_coin.coin_id());
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let claw_back_spend =
+        clawback.sender_spend(&mut ctx, Spend::new(refund_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, claw_back_spend)?;
+    let decoy_spend = decoy.receiver_spend(&mut ctx, Spend::new(decoy_puzzle, NodePtr::NIL))?;
+    ctx.spend(decoy_coin, decoy_spend)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    reveals.reveal_clawback(decoy);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    assert!(matches!(tx, Err(DriverError::UnguaranteedClawBack)));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::expiry_asserted(Some(1000))]
+#[case::before_expiry_asserted(Some(999))]
+#[case::expiry_unasserted(None)]
+fn test_clear_signing_receiver_path_without_message(
+    #[case] earliest_time: Option<u64>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let (clawback, receiver_puzzle) = decoy_clawback(
+        &mut ctx,
+        Conditions::new().create_coin(bob.p2_puzzle_hash, 1, Memos::None),
+        1000,
+    )?;
+
+    let actions = [Action::send(
+        Id::Xch,
+        clawback.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+
+    sim.set_next_timestamp(2000)?;
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let clawback_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        clawback.tree_hash().into(),
+        1,
+    );
+
+    let mut vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    if let Some(earliest_time) = earliest_time {
+        vault_conditions = vault_conditions.assert_seconds_absolute(earliest_time);
+    }
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.receiver_spend(&mut ctx, Spend::new(receiver_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let shown = tx
+        .spends
+        .iter()
+        .any(|spend| spend.asset.coin() == clawback_coin);
+
+    // Unless the vault asserts that the clawback has expired, the receiver path could be replaced with the sender path.
+    assert_eq!(shown, earliest_time == Some(clawback.seconds));
+
+    Ok(())
+}
+
+#[rstest]
+#[case::expiry_unasserted(false)]
+#[case::expiry_asserted_by_clawback_spend(true)]
+fn test_clear_signing_receiver_path_requires_vault_expiry(
+    #[case] spend_asserts_expiry: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+    let mut bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let clawback = ClawbackV2::new(alice.p2_puzzle_hash, bob.p2_puzzle_hash, 1000, 1, false);
+    let memos = ctx.memos(&clvm_list!(bob.p2_puzzle_hash, clawback.memo()))?;
+
+    let _ = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    sim.set_next_timestamp(2000)?;
+
+    bob.p2_puzzles
+        .insert(clawback.tree_hash(), TestP2Puzzle::Clawback(clawback));
+
+    let actions = [Action::send(Id::Xch, alice.p2_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+    bob.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    // The sender path could consume the vault's message instead, so the clawback spend can't vouch for itself.
+    if spend_asserts_expiry {
+        let SpendKind::Conditions(spend) = &mut spends.xch.items[0].kind else {
+            unreachable!("the clawback is spent with conditions");
+        };
+        spend.add_conditions(Conditions::new().assert_seconds_absolute(clawback.seconds));
+    }
+
+    let result = bob.custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        bob.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    assert!(matches!(tx, Err(DriverError::UnguaranteedClawbackExpiry)));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_sender_path_cant_assert_its_expiration() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+
+    // This coin really would expire the transaction, but only the sender path asserts that it's spent.
+    let expiration_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_before_seconds_absolute(1000)
+    ))?;
+    let expiration_puzzle_hash: Bytes32 = ctx.tree_hash(expiration_puzzle).into();
+
+    let actions = [Action::send(
+        Id::Xch,
+        expiration_puzzle_hash,
+        1,
+        Memos::None,
+    )];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let expiration_coin = Coin::new(parent, expiration_puzzle_hash, 1);
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_concurrent_spend(expiration_coin.coin_id())
+    ))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    // The clawback is created last, so that it's spent first by the traversal.
+    let actions = [
+        actions[0].clone(),
+        Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None),
+    ];
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    ctx.spend(expiration_coin, Spend::new(expiration_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    assert!(matches!(tx, Err(DriverError::UnguaranteedClawBack)));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_sender_path_facts_with_vault_expiration() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(Conditions::new().reserve_fee(1)))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    let actions = [Action::send(
+        Id::Xch,
+        clawback.tree_hash().into(),
+        1,
+        Memos::None,
+    )];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let clawback_coin = Coin::new(
+        spends.xch.items[0].asset.coin_id(),
+        clawback.tree_hash().into(),
+        1,
+    );
+
+    // The vault rules out the other paths, so the sender path's conditions are guaranteed.
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_before_seconds_absolute(clawback.seconds);
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.reserved_fee, 1);
+
+    Ok(())
+}
+
+#[rstest]
+#[test]
+fn test_clear_signing_sender_path_facts_with_later_expiration(
+    #[values(false, true)] clawback_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 3)?;
+
+    // The expiration coin's conditions are committed to by its puzzle hash, but it's only verified once the
+    // traversal reaches it as a child, which can be after the sender path is verified.
+    let expiration_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_before_seconds_absolute(1000)
+    ))?;
+    let expiration_puzzle_hash: Bytes32 = ctx.tree_hash(expiration_puzzle).into();
+
+    // Only the sender path asserts that this coin is spent.
+    let asserted_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let asserted_puzzle_hash: Bytes32 = ctx.tree_hash(asserted_puzzle).into();
+
+    let actions = [Action::send(Id::Xch, asserted_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let asserted_coin = Coin::new(parent, asserted_puzzle_hash, 1);
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new()
+            .reserve_fee(1)
+            .assert_concurrent_spend(asserted_coin.coin_id())
+    ))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    let expiration_action = Action::send(Id::Xch, expiration_puzzle_hash, 1, Memos::None);
+    let clawback_action = Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None);
+
+    // The last child created is the first one spent by the traversal, so the asserted coin is reached before the
+    // sender path spend is trusted.
+    let [expiration_action, clawback_action] = if clawback_first {
+        [expiration_action, clawback_action]
+    } else {
+        [clawback_action, expiration_action]
+    };
+    let actions = [expiration_action, clawback_action, actions[0].clone()];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+    let expiration_coin = Coin::new(parent, expiration_puzzle_hash, 1);
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+
+    let vault_conditions = Conditions::new()
+        .assert_concurrent_spend(clawback_coin.coin_id())
+        .assert_concurrent_spend(expiration_coin.coin_id());
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    ctx.spend(expiration_coin, Spend::new(expiration_puzzle, NodePtr::NIL))?;
+    ctx.spend(asserted_coin, Spend::new(asserted_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    // The vault-asserted expiration rules out the other paths, regardless of when it's verified.
+    assert_eq!(tx.reserved_fee, 1);
+    assert!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin().coin_id() == asserted_coin.coin_id())
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[test]
+fn test_clear_signing_asserted_after_visited(
+    #[values(false, true)] asserted_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let asserted_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let asserted_puzzle_hash: Bytes32 = ctx.tree_hash(asserted_puzzle).into();
+
+    let actions = [Action::send(Id::Xch, asserted_puzzle_hash, 1, Memos::None)];
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let asserted_coin = Coin::new(parent, asserted_puzzle_hash, 1);
+
+    // Only this coin asserts that the other one is spent, and only the vault asserts that this one is spent.
+    let asserting_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_concurrent_spend(asserted_coin.coin_id())
+    ))?;
+    let asserting_puzzle_hash: Bytes32 = ctx.tree_hash(asserting_puzzle).into();
+    let asserting_coin = Coin::new(parent, asserting_puzzle_hash, 1);
+
+    let asserting_action = Action::send(Id::Xch, asserting_puzzle_hash, 1, Memos::None);
+
+    // The last child created is the first one visited by the traversal.
+    let actions = if asserted_first {
+        [asserting_action, actions[0].clone()]
+    } else {
+        [actions[0].clone(), asserting_action]
+    };
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(asserting_coin.coin_id());
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    ctx.spend(asserting_coin, Spend::new(asserting_puzzle, NodePtr::NIL))?;
+    ctx.spend(asserted_coin, Spend::new(asserted_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert!(
+        tx.spends
+            .iter()
+            .any(|spend| spend.asset.coin().coin_id() == asserted_coin.coin_id())
+    );
+
+    Ok(())
+}
+
+#[rstest]
+#[test]
+fn test_clear_signing_asserted_after_visited_claw_back_unguaranteed(
+    #[values(false, true)] clawback_first: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 2)?;
+
+    let sender_puzzle = ctx.alloc(&clvm_quote!(Conditions::new()))?;
+    let (receiver, _) = decoy_clawback(&mut ctx, Conditions::new(), 1000)?;
+    let clawback = ClawbackV2::new(
+        ctx.tree_hash(sender_puzzle).into(),
+        receiver.receiver_puzzle_hash,
+        1000,
+        1,
+        false,
+    );
+
+    let clawback_action = Action::send(Id::Xch, clawback.tree_hash().into(), 1, Memos::None);
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(
+        &sim,
+        &mut spends,
+        &Deltas::from_actions(std::slice::from_ref(&clawback_action)),
+    )?;
+    let parent = spends.xch.items[0].asset.coin_id();
+    let clawback_coin = Coin::new(parent, clawback.tree_hash().into(), 1);
+
+    // The claw back is asserted, but nothing guarantees that the transaction expires before the clawback does.
+    let asserting_puzzle = ctx.alloc(&clvm_quote!(
+        Conditions::new().assert_concurrent_spend(clawback_coin.coin_id())
+    ))?;
+    let asserting_puzzle_hash: Bytes32 = ctx.tree_hash(asserting_puzzle).into();
+    let asserting_coin = Coin::new(parent, asserting_puzzle_hash, 1);
+
+    let asserting_action = Action::send(Id::Xch, asserting_puzzle_hash, 1, Memos::None);
+
+    // The last child created is the first one visited by the traversal.
+    let actions = if clawback_first {
+        [asserting_action, clawback_action]
+    } else {
+        [clawback_action, asserting_action]
+    };
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+    assert_eq!(spends.xch.items[0].asset.coin_id(), parent);
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(asserting_coin.coin_id());
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    let spend = clawback.sender_spend(&mut ctx, Spend::new(sender_puzzle, NodePtr::NIL))?;
+    ctx.spend(clawback_coin, spend)?;
+    ctx.spend(asserting_coin, Spend::new(asserting_puzzle, NodePtr::NIL))?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    );
+
+    // This doesn't depend on whether the clawback coin is visited before it's asserted.
+    assert!(matches!(tx, Err(DriverError::UnguaranteedClawBack)));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_push_through_message_bound_expiry() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let (alice, clawback, clawback_coin) = push_through_setup(&mut sim, &mut ctx)?;
+
+    sim.set_next_timestamp(2000)?;
+
+    let actions = [Action::Fee(FeeAction {
+        amount: 1,
+        reserved: true,
+    })];
+
+    let vault_conditions = Conditions::new().assert_concurrent_spend(clawback_coin.coin_id());
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    // The expiry is asserted by a spend that's bound to a vault message, rather than the vault itself.
+    let SpendKind::Conditions(spend) = &mut spends.xch.items[0].kind else {
+        unreachable!("the vault's coin is spent with conditions");
+    };
+    spend.add_conditions(Conditions::new().assert_seconds_absolute(clawback.seconds));
+
+    let mut result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, vault_conditions)?;
+
+    clawback.push_through_coin_spend(&mut ctx, clawback_coin)?;
+    result.spend_bundle.coin_spends.extend(ctx.take());
+    sim.new_transaction(result.spend_bundle.clone())?;
+
+    let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    reveals.reveal_clawback(clawback);
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.spends.len(), 2);
+    assert_eq!(tx.spends[1].asset.coin(), clawback_coin);
 
     Ok(())
 }
@@ -2636,6 +3883,179 @@ fn test_clear_signing_wrong_launcher_id() -> Result<()> {
     let child = &spend.children[0];
     assert_eq!(child.asset.coin().amount, 1000);
     assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    Ok(())
+}
+
+/// A coin offered by a one-sided offer, which is spent as a settlement coin by the taker.
+#[derive(Debug, Clone, Copy)]
+enum OfferedCoin {
+    Xch(Coin),
+    Cat(Cat),
+}
+
+struct OneSidedOffer {
+    offered: OfferedCoin,
+    id: Id,
+    asset: ClearSigningAsset,
+    maker_bundle: SpendBundle,
+}
+
+/// Makes an offer of the amount of the asset from a new vault, which requests nothing in return.
+fn make_one_sided_offer(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    asset_kind: AssetKind,
+    amount: u64,
+) -> Result<OneSidedOffer> {
+    let alice = TestVault::mint(sim, ctx, 1000)?;
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(sim, ctx, &alice, asset_kind, 1000)?;
+
+    let result = alice.partial_spend(
+        sim,
+        ctx,
+        &[Action::send(
+            id,
+            SETTLEMENT_PAYMENT_HASH.into(),
+            amount,
+            Memos::None,
+        )],
+    )?;
+
+    let (offered, asset) = if let Some(asset_id) = asset_id {
+        let cat = result.outputs.cats[0]
+            .iter()
+            .find(|cat| cat.info.p2_puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+            .copied()
+            .unwrap();
+
+        (
+            OfferedCoin::Cat(cat),
+            ClearSigningAsset::Cat {
+                asset_id,
+                hidden_puzzle_hash,
+            },
+        )
+    } else {
+        let coin = result
+            .outputs
+            .xch
+            .iter()
+            .find(|coin| coin.puzzle_hash == SETTLEMENT_PAYMENT_HASH.into())
+            .copied()
+            .unwrap();
+
+        (OfferedCoin::Xch(coin), ClearSigningAsset::Xch)
+    };
+
+    Ok(OneSidedOffer {
+        offered,
+        id,
+        asset,
+        maker_bundle: result.spend_bundle,
+    })
+}
+
+/// Takes the offer with the vault, selecting enough of its XCH for the fee, and makes sure that the
+/// combined transaction is valid.
+fn take_one_sided_offer(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    bob: &TestVault,
+    offer: OneSidedOffer,
+    actions: &[Action],
+    fee: u64,
+    return_unplaced_conditions: bool,
+) -> Result<VaultTransaction> {
+    let mut spends = Spends::new(bob.p2_puzzle_hash);
+
+    match offer.offered {
+        OfferedCoin::Xch(coin) => spends.add(coin),
+        OfferedCoin::Cat(cat) => spends.add(cat),
+    }
+
+    spends.conditions.return_unplaced_conditions = return_unplaced_conditions;
+    bob.select_coins(sim, &mut spends, &Deltas::from_actions(&[Action::fee(fee)]))?;
+
+    let result = bob.partial_custom_spend(sim, ctx, actions, spends, Conditions::new())?;
+    let reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(reveals, ctx, bob.info.launcher_id, result.delegated_spend)?;
+
+    sim.new_transaction(SpendBundle::new(
+        [
+            offer.maker_bundle.coin_spends,
+            result.spend_bundle.coin_spends,
+        ]
+        .concat(),
+        offer.maker_bundle.aggregated_signature + &result.spend_bundle.aggregated_signature,
+    ))?;
+
+    Ok(tx)
+}
+
+fn received_payment_amount(tx: &VaultTransaction, asset: ClearSigningAsset) -> u128 {
+    tx.received_payments
+        .iter()
+        .filter(|payment| payment.asset == asset)
+        .map(|payment| u128::from(payment.payment.amount))
+        .sum()
+}
+
+#[rstest]
+fn test_clear_signing_vault_take_one_sided_offer(
+    #[values(AssetKind::Xch, AssetKind::Cat)] asset_kind: AssetKind,
+    #[values(0, 10)] fee: u64,
+    #[values(false, true)] send_offered: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let offer = make_one_sided_offer(&mut sim, &mut ctx, asset_kind, 1)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let asset = offer.asset;
+
+    // The taker either sends the offered amount to itself, or receives it as change
+    let mut actions = Vec::new();
+
+    if send_offered {
+        let memos = if matches!(asset_kind, AssetKind::Xch) {
+            Memos::None
+        } else {
+            ctx.hint(bob.p2_puzzle_hash)?
+        };
+        actions.push(Action::send(offer.id, bob.p2_puzzle_hash, 1, memos));
+    }
+
+    if fee > 0 {
+        actions.push(Action::fee(fee));
+    }
+
+    let tx = take_one_sided_offer(&mut sim, &mut ctx, &bob, offer, &actions, fee, true)?;
+
+    // Without a fee, the vault doesn't spend any coins, and asserts the payment itself.
+    assert_eq!(tx.spends.len(), usize::from(fee > 0));
+    assert_eq!(tx.reserved_fee, fee);
+
+    // Nothing is unaccounted for, and the received amount is exactly what's asserted.
+    for flow in &tx.asset_flows {
+        assert_eq!(flow.unaccounted_amount, 0);
+    }
+
+    let flow = asset_flow(&tx.asset_flows, asset).unwrap();
+    assert_eq!(flow.received_amount, 1);
+    assert_eq!(received_payment_amount(&tx, asset), 1);
+    assert_eq!(tx.received_payments.len(), 1);
+
+    if fee > 0 {
+        let xch = xch_asset_flow(&tx.asset_flows);
+        assert_eq!(xch.input_amount, 1000);
+        assert_eq!(xch.output_amount, 1000 - u128::from(fee));
+    }
 
     Ok(())
 }
