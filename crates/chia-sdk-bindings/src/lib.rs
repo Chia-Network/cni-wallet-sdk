@@ -23,6 +23,7 @@ mod constants;
 mod convert;
 mod eip712;
 mod full_node_simulator;
+mod fusion;
 mod key_pairs;
 mod merkle_tree;
 mod mips;
@@ -34,6 +35,7 @@ mod puzzle;
 mod rpc;
 mod secp;
 mod simulator;
+mod splitter;
 mod utils;
 
 pub use action_layer::*;
@@ -50,6 +52,7 @@ pub use conditions::*;
 pub use constants::*;
 pub use eip712::*;
 pub use full_node_simulator::*;
+pub use fusion::*;
 pub use key_pairs::*;
 pub use merkle_tree::*;
 pub use mips::*;
@@ -61,6 +64,7 @@ pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
 pub use simulator::*;
+pub use splitter::*;
 pub use utils::*;
 
 #[cfg(any(feature = "napi", feature = "pyo3"))]
@@ -91,9 +95,9 @@ pub use chia_sdk_driver::{
     BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
     CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
     CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
-    Delta, DropCoin, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate, OptionAssetInfo,
-    OptionInfo, OptionMetadata, OptionType, OptionUnderlying, P2ConditionsOrSingleton,
-    P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
+    Delta, DropCoin, FusionDirection, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate,
+    OptionAssetInfo, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
+    P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
     RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
     RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
     RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
@@ -101,12 +105,12 @@ pub use chia_sdk_driver::{
     RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
     RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, StreamedAsset, StreamingPuzzleInfo, UriKind,
-    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion, XchandlesConstants,
-    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
-    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
-    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
-    XchandlesRegistryState,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SplitterPayout, StreamedAsset,
+    StreamingPuzzleInfo, UriKind, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
+    XchandlesConstants, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog,
+    XchandlesExpireActionLog, XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog,
+    XchandlesOracleActionLog, XchandlesPrecommitValueLog, XchandlesRefundActionLog,
+    XchandlesRegisterActionLog, XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -118,7 +122,8 @@ pub use chia_sdk_types::{
         CatalogSlotValue, IntermediaryCoinProof, NftLauncherProof,
         RewardDistributorCommitmentSlotValue, RewardDistributorDepositSlotValue,
         RewardDistributorEntrySlotValue, RewardDistributorRewardSlotValue, SlotNeigborsInfo,
-        XchandlesHandleSlotValue, XchandlesPricingSolution, XchandlesUpdateSlotValue,
+        SplitterShare, XchandlesHandleSlotValue, XchandlesPricingSolution,
+        XchandlesUpdateSlotValue,
     },
 };
 
