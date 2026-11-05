@@ -305,3 +305,32 @@ fn legacy_policy_and_proof_bounds_fail_closed() {
         None
     );
 }
+
+#[test]
+fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow::Result<()> {
+    let (policy, spend, keys, constants, _) = fixture();
+    let verified = parse(&policy, &spend, &keys, &constants)?;
+    let facts = verified.payment();
+    let ctx = &mut ctx();
+    let completion = policy.completion_spend(ctx, facts.pending_coin, facts.destination)?;
+    let puzzle = completion.puzzle_reveal.to_clvm(&mut **ctx)?;
+    let solution = completion.solution.to_clvm(&mut **ctx)?;
+    let output = run_program(ctx, &ChiaDialect::new(0), puzzle, solution, 500_000_000)?.1;
+    let conditions = Vec::<Condition>::from_clvm(&**ctx, output)?;
+    assert_eq!(conditions.len(), 4);
+    assert!(conditions.iter().any(
+        |c| matches!(c,Condition::AssertSecondsRelative(c) if c.seconds == facts.clawback_seconds)
+    ));
+    assert!(conditions.iter().any(|c| matches!(c,Condition::CreateCoin(c) if c.puzzle_hash == facts.destination && c.amount == facts.pending_coin.amount)));
+    assert!(
+        !conditions
+            .iter()
+            .any(|c| c.clone().into_agg_sig().is_some())
+    );
+    assert!(
+        policy
+            .completion_spend(ctx, facts.pending_coin, [0; 32].into())
+            .is_err()
+    );
+    Ok(())
+}

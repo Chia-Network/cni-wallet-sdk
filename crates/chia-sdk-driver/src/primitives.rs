@@ -1,3 +1,5 @@
+mod fee_sponsorship;
+pub use fee_sponsorship::*;
 mod internal_custody;
 pub use internal_custody::*;
 mod bulletin;
