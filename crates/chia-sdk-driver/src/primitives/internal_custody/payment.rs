@@ -112,6 +112,47 @@ impl InternalCustodyPolicy {
             args: clvm_curried_args!((self.info().puzzle_root, destination)),
         })
     }
+    /// Complete a previously authorized pending payment. No custody signature is
+    /// required: its destination and delay are already fixed by the pending coin.
+    /// The caller must establish chain inclusion and relative-time eligibility.
+    pub fn completion_spend(
+        &self,
+        ctx: &mut SpendContext,
+        pending: Coin,
+        destination: Bytes32,
+    ) -> Result<CoinSpend, DriverError> {
+        let puzzle = self.pending_payment_puzzle(ctx, destination)?;
+        if pending.amount == 0
+            || !pending.amount.is_multiple_of(2)
+            || ctx.tree_hash(puzzle) != pending.puzzle_hash.into()
+        {
+            return Err(DriverError::WrongPuzzleHash);
+        }
+        let complete = InternalCustodyAchCompletionArgs {
+            timelock: self.info().payment_clawback,
+        };
+        let clawback = InternalCustodyAchClawbackArgs {
+            return_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
+                .curry_tree_hash()
+                .into(),
+        };
+        let complete_hash = complete.curry_tree_hash();
+        let tree = MerkleTree::new(&[complete_hash.into(), clawback.curry_tree_hash().into()]);
+        let proof = tree
+            .proof(complete_hash.into())
+            .ok_or(InternalCustodyError::InvalidPolicy)?;
+        let complete_puzzle = ctx.curry(complete)?;
+        let solution = InternalCustodyMerkleSolution {
+            puzzle: complete_puzzle,
+            proof,
+            solution: clvm_list!(pending.amount),
+        };
+        Ok(CoinSpend::new(
+            pending,
+            ctx.serialize(&puzzle)?,
+            ctx.serialize(&solution)?,
+        ))
+    }
     /// Construct the exact supported initial payment, with no claims or extra
     /// delegated conditions. This does not check current chain availability.
     pub fn payment_spend(
