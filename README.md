@@ -89,3 +89,4 @@ Special thanks to:
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
+Legacy prefarm/internal-custody payment construction and clear-signing interfaces are documented in [Internal custody](docs/internal-custody.md).

@@ -74,6 +74,24 @@ impl MerkleProof {
     pub fn new(path: u32, proof: Vec<Bytes32>) -> Self {
         Self { path, proof }
     }
+    /// Calculate the root committed by this proof and leaf. Returns `None` for
+    /// paths outside the proof depth or proofs exceeding the 32-bit path format.
+    pub fn root(&self, leaf: Bytes32) -> Option<Bytes32> {
+        if self.proof.len() > 32 || (self.proof.len() < 32 && self.path >> self.proof.len() != 0) {
+            return None;
+        }
+        let mut root = MerkleTree::sha256(&[HASH_LEAF_PREFIX, leaf.as_ref()]);
+        let mut path = self.path;
+        for sibling in &self.proof {
+            root = if path & 1 == 0 {
+                MerkleTree::sha256(&[HASH_TREE_PREFIX, root.as_ref(), sibling.as_ref()])
+            } else {
+                MerkleTree::sha256(&[HASH_TREE_PREFIX, sibling.as_ref(), root.as_ref()])
+            };
+            path >>= 1;
+        }
+        Some(root)
+    }
 }
 
 impl MerkleTree {
