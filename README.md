@@ -68,6 +68,7 @@ If you're new to developing on Chia, [xch.dev](https://xch.dev) is a great place
 From there:
 
 - Browse the [Rust API docs](https://docs.rs/chia-wallet-sdk/latest/chia_wallet_sdk)
+- Read the [legacy internal-custody guide](docs/internal-custody.md) for prefarm payment construction and clear signing
 - Check out the [examples](examples), such as [spending CATs](examples/cat_spends.rs) or [using the simulator](examples/spend_simulator.rs)
 - Look at the binding tests in [`napi/__test__`](napi/__test__), [`wasm/__test__`](wasm/__test__), and [`pyo3/tests`](pyo3/tests) for usage from JavaScript and Python
 
@@ -89,4 +90,3 @@ Special thanks to:
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE).
-Legacy prefarm/internal-custody payment construction and clear-signing interfaces are documented in [Internal custody](docs/internal-custody.md).
