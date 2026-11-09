@@ -34,6 +34,7 @@ mod program;
 mod puzzle;
 mod rpc;
 mod secp;
+mod secure_the_bag;
 mod simulator;
 mod splitter;
 mod utils;
@@ -63,14 +64,15 @@ pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
+pub use secure_the_bag::*;
 pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
@@ -91,11 +93,12 @@ pub use chia_sdk_coinset::{
     PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
-    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, Bulletin,
-    BulletinMessage, Cat, CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog,
-    CatalogRefundActionLog, CatalogRegisterActionLog, CatalogRegistryConstants,
-    CatalogRegistryState, Clawback, ClawbackPath, ClawbackV2, DatastoreMetadata, DelegatedPuzzle,
-    Delta, DropCoin, FusionDirection, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate,
+    AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, BagAsset,
+    BagChild, BagCoin, BagFormat, BagNode, BagPayment, Bulletin, BulletinMessage, Cat,
+    CatAssetInfo, CatInfo, CatalogDelegatedStateActionLog, CatalogRefundActionLog,
+    CatalogRegisterActionLog, CatalogRegistryConstants, CatalogRegistryState, Clawback,
+    ClawbackPath, ClawbackV2, ControlledVaultRecovery, DatastoreMetadata, DelegatedPuzzle, Delta,
+    DropCoin, FusionDirection, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate,
     OptionAssetInfo, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
     P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
     RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
@@ -105,12 +108,12 @@ pub use chia_sdk_driver::{
     RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
     RewardDistributorStateTransition, RewardDistributorSyncActionLog,
     RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SplitterPayout, StreamedAsset,
-    StreamingPuzzleInfo, UriKind, VaultInfo, VaultMessageProof, VaultOutput, VaultVersion,
-    XchandlesConstants, XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog,
-    XchandlesExpireActionLog, XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog,
-    XchandlesOracleActionLog, XchandlesPrecommitValueLog, XchandlesRefundActionLog,
-    XchandlesRegisterActionLog, XchandlesRegistryState,
+    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SigningVault, SplitterPayout, StreamedAsset,
+    StreamingPuzzleInfo, UriKind, VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput,
+    VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
+    XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
+    XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
+    XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -127,7 +130,7 @@ pub use chia_sdk_types::{
     },
 };
 
-#[cfg(any(feature = "napi", feature = "pyo3"))]
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
     CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
 };

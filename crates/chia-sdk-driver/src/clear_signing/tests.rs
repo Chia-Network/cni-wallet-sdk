@@ -25,12 +25,14 @@ use clvmr::NodePtr;
 use rstest::rstest;
 
 use crate::{
-    Action, AssetFlow, BURN_PUZZLE_HASH, Bulletin, BulletinMessage, Cat, CatInfo, CatSpend,
-    ClawbackInfo, ClawbackPath, ClawbackV2, ClearSigningAsset, CustodyInfo, Delta, Deltas,
-    DriverError, DropCoin, FeeAction, HashedPtr, Id, IssuanceKind, Layer, LinkedOffer, Nft,
-    OfferPreSplitInfo, P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset,
-    Puzzle, Reveals, SingleCatSpend, Spend, SpendContext, SpendKind, Spends, TestP2Puzzle,
-    TestVault, TransferNftById, TransferType, VaultOutput, VaultTransaction, iter_final_children,
+    Action, AssetFlow, BURN_PUZZLE_HASH, BagAsset, BagCoin, BagFormat, BagPayment, Bulletin,
+    BulletinMessage, Cat, CatInfo, CatSpend, ClawbackInfo, ClawbackPath, ClawbackV2,
+    ClearSigningAsset, CustodyInfo, Delta, Deltas, DriverError, DropCoin, FeeAction, HashedPtr, Id,
+    IssuanceKind, Layer, LinkedOffer, Nft, NftInfo, OfferPreSplitInfo, OptionInfo,
+    P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, ParsedAsset, ParsedBagPayment,
+    ParsedChild, Puzzle, Reveals, SecureTheBag, SecureTheBagInfo, SingleCatSpend, Spend,
+    SpendContext, SpendKind, Spends, TestP2Puzzle, TestVault, TransactionData, TransferNftById,
+    TransferType, VaultOutput, VaultTransaction, get_extra_delta_message, iter_final_children,
     parse_vault_transaction,
 };
 
@@ -91,6 +93,7 @@ fn issue_asset(
         let issuance = &tx.issuances[0];
         assert_eq!(issuance.asset_id, asset_id);
         assert_eq!(issuance.extra_delta, 0);
+        assert!(issuance.verified);
 
         let xch = xch_asset_flow(&tx.asset_flows);
         assert_eq!(xch.issued_amount, 0);
@@ -1195,6 +1198,196 @@ fn test_clear_signing_minimum_extra_delta() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_clear_signing_unknown_tail_issuance() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let tail_puzzle = ctx.alloc(&clvm_quote!(()))?;
+    let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, NodePtr::NIL))?;
+    let delegated_puzzle_hash = tree_hash(&ctx, delegated_spend.puzzle).into();
+    let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
+
+    let actions = [Action::send(
+        Id::Xch,
+        eve_info.puzzle_hash().into(),
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(alice.p2_puzzle_hash);
+    alice.select_coins(&sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let eve_coin = Coin::new(input_coin_id, eve_info.puzzle_hash().into(), 1000);
+    let eve = Cat::new(eve_coin, None, eve_info);
+
+    eve.spend(
+        &mut ctx,
+        SingleCatSpend {
+            p2_spend: delegated_spend,
+            prev_coin_id: eve_coin.coin_id(),
+            next_coin_proof: CoinProof {
+                parent_coin_info: eve_coin.parent_coin_info,
+                inner_puzzle_hash: delegated_puzzle_hash,
+                amount: eve_coin.amount,
+            },
+            prev_subtotal: 0,
+            extra_delta: -1000,
+            revoke: false,
+        },
+    )?;
+
+    spends
+        .conditions
+        .required
+        .push(Condition::assert_concurrent_spend(eve_coin.coin_id()));
+
+    let result =
+        alice.partial_custom_spend(&mut sim, &mut ctx, &actions, spends, Conditions::new())?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.issuances.len(), 1);
+    assert_eq!(tx.issuances[0].kind, IssuanceKind::Unknown);
+    assert_eq!(tx.issuances[0].extra_delta, -1000);
+    assert!(!tx.issuances[0].verified);
+
+    // The extra delta isn't verified, so it isn't counted as a melt.
+    assert_eq!(cat_asset_flow(&tx.asset_flows).melted_amount, 0);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).issued_amount, 0);
+
+    Ok(())
+}
+
+/// Sends 1000 mojos from the vault to an eve CAT whose TAIL is an everything with singleton TAIL for
+/// `tail_launcher_id`, and whose p2 puzzle is a quoted list of conditions that runs it, then melts all of it. The vault
+/// sends the eve CAT the extra delta message, which the test wallet only does by itself for the vault's own TAIL.
+pub(super) fn melt_eve_cat(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    tail_launcher_id: Bytes32,
+) -> Result<TransactionData> {
+    let tail_puzzle = ctx.curry(EverythingWithSingletonTailArgs::new(
+        tail_launcher_id,
+        Bytes::default(),
+    ))?;
+    let tail_solution = ctx.alloc(&EverythingWithSingletonTailSolution::new(
+        vault.info.custody_hash.into(),
+    ))?;
+    let asset_id: Bytes32 = ctx.tree_hash(tail_puzzle).into();
+
+    let delegated_spend =
+        ctx.delegated_spend(Conditions::new().run_cat_tail(tail_puzzle, tail_solution))?;
+    let delegated_puzzle_hash = tree_hash(ctx, delegated_spend.puzzle).into();
+    let eve_info = CatInfo::new(asset_id, None, delegated_puzzle_hash);
+
+    let actions = [Action::send(
+        Id::Xch,
+        eve_info.puzzle_hash().into(),
+        1000,
+        Memos::None,
+    )];
+
+    let mut spends = Spends::new(vault.p2_puzzle_hash);
+    vault.select_coins(sim, &mut spends, &Deltas::from_actions(&actions))?;
+
+    let input_coin_id = spends.xch.items[0].asset.coin_id();
+    let eve_coin = Coin::new(input_coin_id, eve_info.puzzle_hash().into(), 1000);
+    let eve = Cat::new(eve_coin, None, eve_info);
+
+    eve.spend(
+        ctx,
+        SingleCatSpend {
+            p2_spend: delegated_spend,
+            prev_coin_id: eve_coin.coin_id(),
+            next_coin_proof: CoinProof {
+                parent_coin_info: eve_coin.parent_coin_info,
+                inner_puzzle_hash: delegated_puzzle_hash,
+                amount: eve_coin.amount,
+            },
+            prev_subtotal: 0,
+            extra_delta: -1000,
+            revoke: false,
+        },
+    )?;
+
+    let mut vault_conditions = Conditions::new();
+
+    if tail_launcher_id != vault.info.launcher_id {
+        let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+            | MessageFlags::COIN.encode(MessageSide::Receiver);
+        let eve_coin_id = ctx.alloc(&eve_coin.coin_id())?;
+        vault_conditions =
+            vault_conditions.send_message(mode, get_extra_delta_message(-1000), vec![eve_coin_id]);
+    }
+
+    vault.partial_custom_spend(sim, ctx, &actions, spends, vault_conditions)
+}
+
+#[test]
+fn test_clear_signing_verified_issuance() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    let result = melt_eve_cat(&mut sim, &mut ctx, &alice, alice.info.launcher_id)?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    assert_eq!(tx.issuances.len(), 1);
+    assert!(tx.issuances[0].verified);
+    assert_eq!(cat_asset_flow(&tx.asset_flows).melted_amount, 1000);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).issued_amount, 1000);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_issuance_of_another_singleton() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+
+    // The TAIL is authorized by a different singleton, so the vault's message to the eve CAT doesn't authorize the
+    // extra delta. The eve CAT's p2 puzzle could receive the message itself, so the melt isn't guaranteed.
+    let result = melt_eve_cat(&mut sim, &mut ctx, &alice, Bytes32::new([7; 32]))?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+
+    assert!(matches!(
+        parse_vault_transaction(
+            reveals,
+            &mut ctx,
+            alice.info.launcher_id,
+            result.delegated_spend,
+        ),
+        Err(DriverError::UnmatchedVaultMessage)
+    ));
+
+    Ok(())
+}
+
 #[rstest]
 fn test_clear_signing_bulletin() -> Result<()> {
     let mut sim = Simulator::new();
@@ -1468,6 +1661,48 @@ fn test_clear_signing_spend_clawback(
     check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1);
     assert_eq!(child.memos.clawback, None);
     assert_eq!(child.memos.p2_puzzle_hash, alice.p2_puzzle_hash);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_clawback_to_settlement_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1)?;
+
+    let clawback = ClawbackV2::new(
+        alice.p2_puzzle_hash,
+        SETTLEMENT_PAYMENT_HASH.into(),
+        1000,
+        1,
+        false,
+    );
+    let memos = ctx.memos(&clvm_list!(
+        Bytes32::from(SETTLEMENT_PAYMENT_HASH),
+        clawback.memo()
+    ))?;
+
+    let result = alice.spend(
+        &mut sim,
+        &mut ctx,
+        &[Action::send(Id::Xch, clawback.tree_hash().into(), 1, memos)],
+    )?;
+
+    let reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+    let tx = parse_vault_transaction(
+        reveals,
+        &mut ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?;
+
+    let child = &tx.spends[0].children[0];
+    assert_eq!(child.memos.clawback, Some(clawback));
+    assert_eq!(child.transfer_type, TransferType::Sent);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).output_amount, 1);
+    assert_eq!(xch_asset_flow(&tx.asset_flows).unaccounted_amount, 0);
 
     Ok(())
 }
@@ -2027,6 +2262,50 @@ fn test_clear_signing_push_through_wrong_puzzle() -> Result<()> {
     );
 
     assert!(matches!(tx, Err(DriverError::InvalidMerkleProof)));
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_unrelated_unparseable_spend() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let bob = TestVault::mint(&mut sim, &mut ctx, 0)?;
+    let coin = vault_coin(&alice, 1000);
+
+    // A spend of a coin owned by another vault, whose delegated spend isn't quoted conditions.
+    let TestP2Puzzle::P2Singleton(bob_p2_singleton) = bob.p2_puzzles[&bob.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let bob_coin = Coin::new(Bytes32::new([1; 32]), bob.p2_puzzle_hash, 1000);
+    let bob_spend = bob_p2_singleton.spend(
+        &mut ctx,
+        bob.info.custody_hash.into(),
+        1,
+        Spend::new(NodePtr::NIL, NodePtr::NIL),
+    )?;
+    ctx.spend(bob_coin, bob_spend)?;
+    let bob_coin_spends = ctx.take();
+
+    let delegated_spend = ctx.delegated_spend(Conditions::new().create_coin(
+        alice.p2_puzzle_hash,
+        1000,
+        Memos::None,
+    ))?;
+    let tx = parse_linked_spend(
+        &mut ctx,
+        &alice,
+        coin,
+        delegated_spend,
+        Conditions::new(),
+        &bob_coin_spends,
+    )??;
+
+    assert_eq!(tx.spends.len(), 1);
+    assert_eq!(tx.spends[0].asset.coin(), coin);
 
     Ok(())
 }
@@ -3549,6 +3828,167 @@ fn test_clear_signing_nft_offer() -> Result<()> {
     Ok(())
 }
 
+/// Reveals a requested payment to the vault from a settlement coin with the given puzzle, and has the vault assert
+/// its announcement.
+fn parse_asserted_settlement_payment(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    settlement_puzzle: NodePtr,
+) -> Result<Result<VaultTransaction, DriverError>> {
+    parse_asserted_settlement_payments(ctx, vault, &[settlement_puzzle])
+}
+
+/// Reveals the same requested payment to the vault for each settlement puzzle, and asserts each of their
+/// announcements from the vault.
+fn parse_asserted_settlement_payments(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    settlement_puzzles: &[NodePtr],
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let notarized_payment = NotarizedPayment::new(
+        Bytes32::new([9; 32]),
+        vec![Payment::new(vault.p2_puzzle_hash, 1, Memos::None)],
+    );
+    let settlement_solution = ctx.alloc(&SettlementPaymentsSolution::new(vec![
+        notarized_payment.clone(),
+    ]))?;
+    let payment_hash = tree_hash_notarized_payment(ctx, &notarized_payment);
+
+    let mut coin_spends = Vec::new();
+    let mut conditions = Conditions::new();
+
+    for &settlement_puzzle in settlement_puzzles {
+        let settlement_puzzle_hash: Bytes32 = ctx.tree_hash(settlement_puzzle).into();
+
+        // Requested payments are revealed as coin spends with a default parent coin id.
+        coin_spends.push(CoinSpend::new(
+            Coin::new(Bytes32::default(), settlement_puzzle_hash, 1),
+            ctx.serialize(&settlement_puzzle)?,
+            ctx.serialize(&settlement_solution)?,
+        ));
+
+        conditions = conditions
+            .assert_puzzle_announcement(announcement_id(settlement_puzzle_hash, payment_hash));
+    }
+
+    let delegated_spend = ctx.delegated_spend(conditions.create_coin(
+        vault.info.custody_hash.into(),
+        1,
+        Memos::None,
+    ))?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        vault.info.launcher_id,
+        delegated_spend,
+    ))
+}
+
+#[rstest]
+fn test_clear_signing_asserted_nft_payment_with_owner(
+    #[values(None, Some(Bytes32::new([8; 32])))] owner: Option<Bytes32>,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let info = NftInfo::new(
+        Bytes32::new([1; 32]),
+        HashedPtr::NIL,
+        NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+        owner,
+        Bytes32::new([2; 32]),
+        300,
+        SETTLEMENT_PAYMENT_HASH.into(),
+    );
+    let puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
+
+    // The settlement coin's puzzle hash commits to the NFT's owner, so the announcement is matched for the owner that
+    // the requested payment is revealed with.
+    let tx = parse_asserted_settlement_payment(&mut ctx, &alice, puzzle)??;
+
+    assert_eq!(tx.asserted_payments.len(), 1);
+    assert_eq!(
+        tx.asserted_payments[0].asset,
+        ClearSigningAsset::Nft {
+            launcher_id: info.launcher_id,
+            metadata: info.metadata,
+            metadata_updater_puzzle_hash: info.metadata_updater_puzzle_hash,
+            royalty_puzzle_hash: info.royalty_puzzle_hash,
+            royalty_basis_points: info.royalty_basis_points,
+        }
+    );
+    assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_asserted_nft_payment_with_two_owners() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let puzzles = [None, Some(Bytes32::new([8; 32]))]
+        .into_iter()
+        .map(|owner| {
+            NftInfo::new(
+                Bytes32::new([1; 32]),
+                HashedPtr::NIL,
+                NFT_METADATA_UPDATER_DEFAULT_HASH.into(),
+                owner,
+                Bytes32::new([2; 32]),
+                300,
+                SETTLEMENT_PAYMENT_HASH.into(),
+            )
+            .into_layers(settlement)
+            .construct_puzzle(&mut ctx)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // The same payment is asserted for settlement coins of the NFT with two different owners. Only one coin of the NFT
+    // can exist, so the payment is only reported once.
+    let tx = parse_asserted_settlement_payments(&mut ctx, &alice, &puzzles)??;
+
+    assert_eq!(tx.asserted_payments.len(), 1);
+    assert_eq!(tx.received_payments.len(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn test_clear_signing_asserted_option_payment() -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 0)?;
+
+    let settlement = ctx.alloc_mod::<SettlementPayment>()?;
+    let info = OptionInfo::new(
+        Bytes32::new([1; 32]),
+        Bytes32::new([2; 32]),
+        Bytes32::new([3; 32]),
+        SETTLEMENT_PAYMENT_HASH.into(),
+    );
+    let puzzle = info.into_layers(settlement).construct_puzzle(&mut ctx)?;
+
+    // Option contracts can't be represented as a clear signing asset, so an asserted payment of one can't be reported,
+    // and isn't silently left out either.
+    assert!(matches!(
+        parse_asserted_settlement_payment(&mut ctx, &alice, puzzle)?,
+        Err(DriverError::UnsupportedAssertedOptionPayment)
+    ));
+
+    Ok(())
+}
+
 #[rstest]
 fn test_clear_signing_single_sided_offer() -> Result<()> {
     let mut sim = Simulator::new();
@@ -4058,4 +4498,523 @@ fn test_clear_signing_vault_take_one_sided_offer(
     }
 
     Ok(())
+}
+
+fn bag_asset(asset_id: Option<Bytes32>, hidden_puzzle_hash: Option<Bytes32>) -> BagAsset {
+    match (asset_id, hidden_puzzle_hash) {
+        (None, _) => BagAsset::Xch,
+        (Some(asset_id), None) => BagAsset::Cat { asset_id },
+        (Some(asset_id), Some(hidden_puzzle_hash)) => BagAsset::RevocableCat {
+            asset_id,
+            hidden_puzzle_hash,
+        },
+    }
+}
+
+/// Sends the amount to the p2 puzzle hash from the vault, and parses the transaction with the bags revealed.
+fn fund_bag(
+    sim: &mut Simulator,
+    ctx: &mut SpendContext,
+    alice: &TestVault,
+    id: Id,
+    p2_puzzle_hash: Bytes32,
+    amount: u64,
+    bags: Vec<SecureTheBag>,
+) -> Result<VaultTransaction> {
+    let memos = ctx.hint(p2_puzzle_hash)?;
+
+    let result = alice.spend(sim, ctx, &[Action::send(id, p2_puzzle_hash, amount, memos)])?;
+
+    let mut reveals = Reveals::from_coin_spends(ctx, &result.spend_bundle.coin_spends)?;
+
+    for bag in bags {
+        reveals.reveal_bag(bag);
+    }
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        alice.info.launcher_id,
+        result.delegated_spend,
+    )?)
+}
+
+/// The child that the vault sent to the p2 puzzle hash, rather than the change.
+fn sent_child(tx: &VaultTransaction, p2_puzzle_hash: Bytes32) -> &ParsedChild {
+    let mut children = iter_final_children(&tx.spends).filter(|child| {
+        child.memos.p2_puzzle_hash == p2_puzzle_hash
+            || child
+                .memos
+                .clawback
+                .is_some_and(|clawback| clawback.tree_hash() == p2_puzzle_hash.into())
+    });
+    let child = children.next().expect("missing child");
+    assert!(children.next().is_none());
+    child
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+    let carol: Bytes32 = "carol".tree_hash().into();
+    let dave: Bytes32 = "dave".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1000)?;
+
+    let hinted = asset_id.is_some();
+
+    // We can claw back the payment to dave until it expires, and receive the one from bob once it expires
+    let our_clawback = ClawbackV2::new(alice.p2_puzzle_hash, dave, 1000, 100, hinted);
+    let their_clawback = ClawbackV2::new(bob, alice.p2_puzzle_hash, 1000, 50, hinted);
+
+    let bag = SecureTheBag::build(
+        BagFormat::Legacy {
+            leaf_width: Some(2),
+            sorted: true,
+        },
+        bag_asset(asset_id, hidden_puzzle_hash),
+        [
+            BagPayment::new(bob, 300),
+            BagPayment::new(carol, 200),
+            BagPayment::from_clawback(our_clawback),
+            BagPayment::from_clawback(their_clawback),
+            BagPayment::new(alice.p2_puzzle_hash, 250),
+            BagPayment::new(BURN_PUZZLE_HASH, 50),
+            BagPayment::new(SETTLEMENT_PAYMENT_HASH.into(), 50),
+        ],
+    )?;
+    assert!(bag.depth() > 1);
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        bag.total_amount(),
+        vec![bag.clone()],
+    )?;
+
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
+    assert_eq!(child.asset.coin().puzzle_hash, bag.root_puzzle_hash());
+
+    let expected_payments = bag
+        .payments()
+        .iter()
+        .map(|&payment| ParsedBagPayment {
+            payment,
+            transfer_type: if payment.puzzle_hash == BURN_PUZZLE_HASH {
+                TransferType::Burned
+            } else {
+                TransferType::Sent
+            },
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        child.transfer_type,
+        TransferType::SecureTheBag(SecureTheBagInfo {
+            format: bag.format(),
+            payments: expected_payments,
+        })
+    );
+
+    let TransferType::SecureTheBag(info) = &child.transfer_type else {
+        unreachable!();
+    };
+
+    // The display can tell the payments back to the vault apart from the others
+    let ours = info
+        .payments
+        .iter()
+        .filter(|payment| tx.p2_puzzle_hashes.contains(&payment.payment.puzzle_hash))
+        .map(|payment| payment.payment)
+        .collect::<Vec<_>>();
+    assert_eq!(ours.len(), 2);
+    assert!(ours.contains(&BagPayment::new(alice.p2_puzzle_hash, 250)));
+    assert!(ours.contains(&BagPayment::from_clawback(their_clawback)));
+
+    let clawbacks = info
+        .payments
+        .iter()
+        .filter_map(|payment| payment.payment.clawback)
+        .collect::<Vec<_>>();
+    assert_eq!(clawbacks.len(), 2);
+    assert!(clawbacks.contains(&our_clawback));
+    assert!(clawbacks.contains(&their_clawback));
+
+    // The root is only counted once, rather than also counting its payments
+    let flow = asset_flow(&tx.asset_flows, asset_from_bag(bag.asset())).unwrap();
+    assert_eq!(flow.input_amount, 1000);
+    assert_eq!(flow.output_amount, 1000);
+    assert_eq!(flow.paid_amount, 0);
+    assert_eq!(flow.unaccounted_amount, 0);
+    assert_eq!(iter_final_children(&tx.spends).count(), 1);
+
+    // The root can be unrolled to every payment
+    let root = match &child.asset {
+        ParsedAsset::Xch(coin) => BagCoin::Xch(*coin),
+        ParsedAsset::Cat(cat) => BagCoin::Cat(*cat),
+        _ => unreachable!(),
+    };
+    let coins = bag.unroll(&mut ctx, root)?;
+    sim.spend_coins(ctx.take(), &[])?;
+
+    assert_eq!(coins.len(), 7);
+    for coin in coins {
+        assert!(sim.coin_state(coin.coin().coin_id()).is_some());
+    }
+
+    Ok(())
+}
+
+fn asset_from_bag(asset: BagAsset) -> ClearSigningAsset {
+    match asset {
+        BagAsset::Xch => ClearSigningAsset::Xch,
+        BagAsset::Cat { asset_id } => ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: None,
+        },
+        BagAsset::RevocableCat {
+            asset_id,
+            hidden_puzzle_hash,
+        } => ClearSigningAsset::Cat {
+            asset_id,
+            hidden_puzzle_hash: Some(hidden_puzzle_hash),
+        },
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BagMismatch {
+    Unrevealed,
+    WrongPayment,
+    AmountTooLow,
+    AmountTooHigh,
+    WrongAsset,
+    WrongAssetId,
+    WrongHiddenPuzzleHash,
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag_mismatch(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+    #[values(
+        BagMismatch::Unrevealed,
+        BagMismatch::WrongPayment,
+        BagMismatch::AmountTooLow,
+        BagMismatch::AmountTooHigh,
+        BagMismatch::WrongAsset,
+        BagMismatch::WrongAssetId,
+        BagMismatch::WrongHiddenPuzzleHash
+    )]
+    mismatch: BagMismatch,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1001)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+    let carol: Bytes32 = "carol".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1001)?;
+
+    let asset = bag_asset(asset_id, hidden_puzzle_hash);
+    let other = Bytes32::new([1; 32]);
+
+    let bag = SecureTheBag::build(
+        BagFormat::legacy(),
+        asset,
+        [BagPayment::new(bob, 600), BagPayment::new(carol, 400)],
+    )?;
+
+    let revealed_asset = match mismatch {
+        BagMismatch::WrongAsset => match asset {
+            BagAsset::Xch => BagAsset::Cat { asset_id: other },
+            BagAsset::Cat { .. } => BagAsset::Xch,
+            BagAsset::RevocableCat { asset_id, .. } => BagAsset::Cat { asset_id },
+        },
+        BagMismatch::WrongAssetId => match asset {
+            BagAsset::Xch | BagAsset::Cat { .. } => BagAsset::Cat { asset_id: other },
+            BagAsset::RevocableCat {
+                hidden_puzzle_hash, ..
+            } => BagAsset::RevocableCat {
+                asset_id: other,
+                hidden_puzzle_hash,
+            },
+        },
+        BagMismatch::WrongHiddenPuzzleHash => match asset {
+            BagAsset::Xch => BagAsset::RevocableCat {
+                asset_id: other,
+                hidden_puzzle_hash: other,
+            },
+            BagAsset::Cat { asset_id } | BagAsset::RevocableCat { asset_id, .. } => {
+                BagAsset::RevocableCat {
+                    asset_id,
+                    hidden_puzzle_hash: other,
+                }
+            }
+        },
+        _ => asset,
+    };
+
+    // The same total, but paid to bob and carol differently, which changes the root
+    let revealed_payments = match mismatch {
+        BagMismatch::WrongPayment => vec![BagPayment::new(bob, 601), BagPayment::new(carol, 399)],
+        _ => bag.payments().to_vec(),
+    };
+
+    let revealed = SecureTheBag::build(BagFormat::legacy(), revealed_asset, revealed_payments)?;
+
+    let amount = match mismatch {
+        BagMismatch::AmountTooLow => 999,
+        BagMismatch::AmountTooHigh => 1001,
+        _ => 1000,
+    };
+
+    let bags = match mismatch {
+        BagMismatch::Unrevealed => vec![],
+        _ => vec![revealed],
+    };
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        amount,
+        bags,
+    )?;
+
+    // Without a matching reveal, the root is an ordinary send to an unknown puzzle hash
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, amount);
+    assert_eq!(child.memos.p2_puzzle_hash, bag.root_hash());
+    assert_eq!(child.memos.clawback, None);
+    assert_eq!(child.transfer_type, TransferType::Sent);
+
+    Ok(())
+}
+
+#[rstest]
+fn test_clear_signing_secure_the_bag_single_payment(
+    #[values(AssetKind::Xch, AssetKind::Cat, AssetKind::RevocableCat)] asset_kind: AssetKind,
+    #[values(false, true)] clawback: bool,
+) -> Result<()> {
+    let mut sim = Simulator::new();
+    let mut ctx = SpendContext::new();
+
+    let alice = TestVault::mint(&mut sim, &mut ctx, 1000)?;
+    let bob: Bytes32 = "bob".tree_hash().into();
+
+    let IssuedAsset {
+        id,
+        asset_id,
+        hidden_puzzle_hash,
+    } = issue_asset(&mut sim, &mut ctx, &alice, asset_kind, 1000)?;
+
+    let payment = if clawback {
+        BagPayment::from_clawback(ClawbackV2::new(
+            alice.p2_puzzle_hash,
+            bob,
+            1000,
+            1000,
+            asset_id.is_some(),
+        ))
+    } else {
+        BagPayment::new(bob, 1000)
+    };
+
+    let bag = SecureTheBag::build(
+        BagFormat::legacy(),
+        bag_asset(asset_id, hidden_puzzle_hash),
+        [payment],
+    )?;
+
+    // A single payment isn't bagged unless it needs a node to create its clawback
+    assert_eq!(bag.root_hash() == bob, !clawback);
+
+    let tx = fund_bag(
+        &mut sim,
+        &mut ctx,
+        &alice,
+        id,
+        bag.root_hash(),
+        1000,
+        vec![bag.clone()],
+    )?;
+
+    let child = sent_child(&tx, bag.root_hash());
+    check_asset(&child.asset, asset_id, hidden_puzzle_hash, 1000);
+
+    if clawback {
+        assert_eq!(child.memos.p2_puzzle_hash, bag.root_hash());
+        assert_eq!(
+            child.transfer_type,
+            TransferType::SecureTheBag(SecureTheBagInfo {
+                format: bag.format(),
+                payments: vec![ParsedBagPayment {
+                    payment,
+                    transfer_type: TransferType::Sent,
+                }],
+            })
+        );
+    } else {
+        assert_eq!(child.memos.p2_puzzle_hash, bob);
+        assert_eq!(child.transfer_type, TransferType::Sent);
+    }
+
+    Ok(())
+}
+
+/// Measures how long it takes a signer to rebuild a revealed bag and verify that a vault transaction funds it.
+///
+/// Run in release mode with `BAG_PAYMENTS` (a comma separated list of sizes), `BAG_CLAWBACKS` (every nth payment
+/// is a clawback, 0 for none) and optionally `BAG_LEAF_WIDTH`, for example:
+/// `BAG_PAYMENTS=1000000 cargo test --release -p chia-sdk-driver bench_clear_signing_secure_the_bag -- --ignored --nocapture`
+#[test]
+#[ignore = "benchmark"]
+fn bench_clear_signing_secure_the_bag() -> Result<()> {
+    use std::time::Instant;
+
+    let sizes: Vec<usize> = std::env::var("BAG_PAYMENTS")
+        .unwrap_or_else(|_| "10000,100000,1000000".to_string())
+        .split(',')
+        .map(|size| size.trim().parse())
+        .collect::<Result<_, _>>()?;
+    let clawbacks: usize =
+        std::env::var("BAG_CLAWBACKS").map_or(Ok(0), |clawbacks| clawbacks.parse())?;
+    let leaf_width: Option<usize> = std::env::var("BAG_LEAF_WIDTH")
+        .ok()
+        .map(|width| width.parse())
+        .transpose()?;
+    let format = BagFormat::Legacy {
+        leaf_width,
+        sorted: true,
+    };
+
+    for size in sizes {
+        let mut sim = Simulator::new();
+        let mut ctx = SpendContext::new();
+
+        let alice = TestVault::mint(&mut sim, &mut ctx, size as u64)?;
+
+        let payments: Vec<BagPayment> = (0..size)
+            .map(|i| {
+                let puzzle_hash: Bytes32 = (i as u64).tree_hash().into();
+
+                if clawbacks > 0 && i % clawbacks == 0 {
+                    BagPayment::from_clawback(ClawbackV2::new(
+                        alice.p2_puzzle_hash,
+                        puzzle_hash,
+                        1000,
+                        1,
+                        false,
+                    ))
+                } else {
+                    BagPayment::new(puzzle_hash, 1)
+                }
+            })
+            .collect();
+
+        // The funding bag is dropped before measuring, so that only the revealed bag counts towards peak memory
+        let root_hash = SecureTheBag::build(format, BagAsset::Xch, payments.clone())?.root_hash();
+        let memos = ctx.hint(root_hash)?;
+
+        let result = alice.spend(
+            &mut sim,
+            &mut ctx,
+            &[Action::send(Id::Xch, root_hash, size as u64, memos)],
+        )?;
+
+        let start = Instant::now();
+        let bag = SecureTheBag::build(format, BagAsset::Xch, payments)?;
+        let build_time = start.elapsed();
+
+        let start = Instant::now();
+        let mut reveals = Reveals::from_coin_spends(&mut ctx, &result.spend_bundle.coin_spends)?;
+        reveals.reveal_bag(bag);
+        let tx = parse_vault_transaction(
+            reveals,
+            &mut ctx,
+            alice.info.launcher_id,
+            result.delegated_spend,
+        )?;
+        let parse_time = start.elapsed();
+
+        let child = sent_child(&tx, root_hash);
+        let TransferType::SecureTheBag(info) = &child.transfer_type else {
+            panic!("expected a bag");
+        };
+        assert_eq!(info.payments.len(), size);
+
+        println!(
+            "{size} payments (clawbacks every {clawbacks}, width {}): rebuild {build_time:?}, parse {parse_time:?}, total {:?}",
+            format.width(size),
+            build_time + parse_time
+        );
+    }
+
+    Ok(())
+}
+
+/// Spends a coin owned by the vault's default p2 puzzle hash with the given delegated spend,
+/// and sends it a message from the vault (which includes the given vault conditions).
+fn parse_linked_spend(
+    ctx: &mut SpendContext,
+    vault: &TestVault,
+    coin: Coin,
+    delegated_spend: Spend,
+    vault_conditions: Conditions,
+    extra_coin_spends: &[CoinSpend],
+) -> Result<Result<VaultTransaction, DriverError>> {
+    let delegated_puzzle_hash = ctx.tree_hash(delegated_spend.puzzle);
+
+    let TestP2Puzzle::P2Singleton(p2_singleton) = vault.p2_puzzles[&vault.p2_puzzle_hash.into()]
+    else {
+        panic!("expected p2 singleton");
+    };
+    let spend = p2_singleton.spend(ctx, vault.info.custody_hash.into(), 1, delegated_spend)?;
+    ctx.spend(coin, spend)?;
+
+    let mut coin_spends = ctx.take();
+    coin_spends.extend_from_slice(extra_coin_spends);
+
+    let mode = MessageFlags::PUZZLE.encode(MessageSide::Sender)
+        | MessageFlags::COIN.encode(MessageSide::Receiver);
+    let coin_id = ctx.alloc(&coin.coin_id())?;
+    let vault_delegated_spend = ctx.delegated_spend(
+        vault_conditions
+            .send_message(mode, delegated_puzzle_hash.to_vec().into(), vec![coin_id])
+            .create_coin(vault.info.custody_hash.into(), 1, Memos::None),
+    )?;
+
+    let reveals = Reveals::from_coin_spends(ctx, &coin_spends)?;
+
+    Ok(parse_vault_transaction(
+        reveals,
+        ctx,
+        vault.info.launcher_id,
+        vault_delegated_spend,
+    ))
+}
+
+fn vault_coin(vault: &TestVault, amount: u64) -> Coin {
+    Coin::new(Bytes32::new([42; 32]), vault.p2_puzzle_hash, amount)
 }
