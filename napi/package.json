@@ -1,6 +1,6 @@
 {
   "name": "cni-wallet-sdk",
-  "version": "0.40.0",
+  "version": "0.41.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -38,9 +38,9 @@
     ]
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.9",
+    "@napi-rs/cli": "^3.10.12",
     "@types/node": "^26.6.6",
-    "ava": "^8.2.0"
+    "ava": "^8.3.0"
   },
   "ava": {
     "timeout": "3m",
