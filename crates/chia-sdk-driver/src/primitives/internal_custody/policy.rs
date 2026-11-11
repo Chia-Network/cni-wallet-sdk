@@ -5,7 +5,8 @@ use chia_sdk_types::MerkleProof;
 use std::collections::HashSet;
 
 /// Public parameters curried into a legacy custody singleton. Supplying these
-/// parameters does not establish their origin; callers must supply trusted data.
+/// parameters does not establish their origin. The verifier checks them against
+/// the exact spend; applications own any separate policy recognition/authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyInfo {
     pub launcher_id: Bytes32,

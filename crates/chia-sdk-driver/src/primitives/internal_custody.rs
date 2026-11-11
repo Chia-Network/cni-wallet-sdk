@@ -22,3 +22,5 @@ pub enum InternalCustodyError {
     #[error("internal-custody conditions do not match the verified payment")]
     UnexpectedConditions,
 }
+
+pub(crate) use payment::deposit_announcement;

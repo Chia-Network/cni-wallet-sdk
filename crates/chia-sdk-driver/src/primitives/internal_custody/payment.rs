@@ -1,6 +1,6 @@
 use crate::{
     DriverError, InternalCustodyError, InternalCustodyLayer, InternalCustodyPolicy, Layer,
-    SpendContext, SpendWithConditions, StandardLayer,
+    P2SingletonLayer, SpendContext, SpendWithConditions, StandardLayer,
 };
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
@@ -153,8 +153,8 @@ impl InternalCustodyPolicy {
             ctx.serialize(&solution)?,
         ))
     }
-    /// Construct the exact supported initial payment, with no claims or extra
-    /// delegated conditions. This does not check current chain availability.
+    /// Construct a payment without deposits. See `payment_spends` for absorption.
+    /// This does not check current chain availability.
     pub fn payment_spend(
         &self,
         ctx: &mut SpendContext,
@@ -164,10 +164,38 @@ impl InternalCustodyPolicy {
         destination: Bytes32,
         signers: &[PublicKey],
     ) -> Result<CoinSpend, DriverError> {
-        if amount == 0
-            || !amount.is_multiple_of(2)
+        let mut spends =
+            self.payment_spends(ctx, coin, proof, amount, destination, signers, &[])?;
+        Ok(spends.remove(0))
+    }
+
+    /// Construct an authorized withdrawal, deposit absorption, or both. The first
+    /// spend is the singleton; remaining inputs are p2-singleton deposits ordered
+    /// by coin ID. No fees or other delegated conditions are permitted here.
+    /// Deposit totals must be even to preserve the singleton's odd amount.
+    /// Claim-only uses a zero destination and creates no pending payment.
+    /// Callers must check current input availability and relative-time eligibility.
+    #[allow(clippy::too_many_arguments)]
+    pub fn payment_spends(
+        &self,
+        ctx: &mut SpendContext,
+        coin: Coin,
+        proof: Proof,
+        amount: u64,
+        destination: Bytes32,
+        signers: &[PublicKey],
+        deposits: &[Coin],
+    ) -> Result<Vec<CoinSpend>, DriverError> {
+        let incoming = self.validate_deposits(coin, deposits)?;
+        let remaining = coin
+            .amount
+            .checked_add(incoming)
+            .and_then(|balance| balance.checked_sub(amount))
+            .ok_or(InternalCustodyError::InvalidPayment)?;
+        if !amount.is_multiple_of(2)
             || coin.amount.is_multiple_of(2)
-            || amount >= coin.amount
+            || remaining == 0
+            || (amount == 0 && (incoming == 0 || destination != Bytes32::default()))
         {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
@@ -214,13 +242,26 @@ impl InternalCustodyPolicy {
             .ok_or(InternalCustodyError::InvalidPolicy)?;
         let inner = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
         let pending = self.pending_payment_puzzle(ctx, destination)?;
-        let conditions = Conditions::new()
-            .create_coin(
-                ctx.tree_hash(inner).into(),
-                coin.amount - amount,
-                Memos::None,
-            )
-            .create_coin(ctx.tree_hash(pending).into(), amount, Memos::None);
+        let mut conditions =
+            Conditions::new().create_coin(ctx.tree_hash(inner).into(), remaining, Memos::None);
+        if amount > 0 {
+            conditions = conditions.create_coin(ctx.tree_hash(pending).into(), amount, Memos::None);
+        }
+        let deposit_layer = P2SingletonLayer::new(self.info().launcher_id);
+        let inner_hash: Bytes32 = ctx.tree_hash(inner).into();
+        let mut deposit_spends = Vec::with_capacity(deposits.len());
+        for deposit in deposits {
+            let id = deposit.coin_id();
+            conditions = conditions
+                .create_puzzle_announcement(id.into())
+                .assert_coin_announcement(deposit_announcement(id).into());
+            let spend = deposit_layer.spend(ctx, id, inner_hash)?;
+            deposit_spends.push(CoinSpend::new(
+                *deposit,
+                ctx.serialize(&spend.puzzle)?,
+                ctx.serialize(&spend.solution)?,
+            ));
+        }
         let standard_spend = standard.spend_with_conditions(ctx, conditions)?;
         let filter_solution = InternalCustodyMerkleSolution {
             puzzle: standard_spend.puzzle,
@@ -238,7 +279,7 @@ impl InternalCustodyPolicy {
                 spend_type: 2,
                 action: InternalCustodyPaymentArguments {
                     outgoing: amount,
-                    incoming: 0,
+                    incoming,
                     destination,
                 },
                 filter_puzzle: filter,
@@ -250,10 +291,41 @@ impl InternalCustodyPolicy {
         if ctx.tree_hash(puzzle) != coin.puzzle_hash.into() {
             return Err(DriverError::WrongPuzzleHash);
         }
-        Ok(CoinSpend::new(
+        let mut spends = vec![CoinSpend::new(
             coin,
             ctx.serialize(&puzzle)?,
             ctx.serialize(&solution)?,
-        ))
+        )];
+        spends.extend(deposit_spends);
+        Ok(spends)
     }
+
+    fn validate_deposits(&self, singleton: Coin, deposits: &[Coin]) -> Result<u64, DriverError> {
+        let puzzle_hash: Bytes32 = P2SingletonArgs::new(self.info().launcher_id)
+            .curry_tree_hash()
+            .into();
+        if deposits.len() > 63 || !deposits.windows(2).all(|w| w[0].coin_id() < w[1].coin_id()) {
+            return Err(InternalCustodyError::InvalidPayment.into());
+        }
+        let mut total = 0u64;
+        for coin in deposits {
+            if coin.puzzle_hash != puzzle_hash || coin.amount == 0 || *coin == singleton {
+                return Err(InternalCustodyError::InvalidPayment.into());
+            }
+            total = total
+                .checked_add(coin.amount)
+                .ok_or(InternalCustodyError::InvalidPayment)?;
+        }
+        if !total.is_multiple_of(2) {
+            return Err(InternalCustodyError::InvalidPayment.into());
+        }
+        Ok(total)
+    }
+}
+
+pub(crate) fn deposit_announcement(id: Bytes32) -> [u8; 32] {
+    let mut hash = chia_sha2::Sha256::new();
+    hash.update(id.as_ref());
+    hash.update(b"$");
+    hash.finalize()
 }
