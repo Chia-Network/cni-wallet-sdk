@@ -112,7 +112,8 @@ impl VerifiedInternalCustodyPayment {
 /// signing modes. Input programs must be canonical.
 ///
 /// `ctx` must use an appropriately bounded allocator for untrusted inputs. CLVM
-/// execution uses the explicit `max_cost` and the consensus dialect directly,
+/// execution requires a positive `max_cost` shared by all inputs and uses the
+/// consensus dialect directly,
 /// avoiding debug dialect logs for offline signer requests. This is local proof
 /// checking, not consensus validation of current chain state or relative time.
 pub fn parse_internal_custody_payment(
@@ -198,25 +199,9 @@ pub fn parse_internal_custody_payment(
     for deposit in &coin_spends[1..] {
         let puzzle = canonical_program(ctx, deposit.puzzle_reveal.as_ref())?;
         let solution = canonical_program(ctx, deposit.solution.as_ref())?;
-        let reduction = run_program(
-            ctx,
-            &ChiaDialect::new(ClvmFlags::empty()),
-            puzzle,
-            solution,
-            cost_left,
-        )?;
-        cost_left = cost_left
-            .checked_sub(reduction.0)
-            .ok_or(InternalCustodyError::InvalidProgram)?;
+        run_budgeted(ctx, puzzle, solution, &mut cost_left)?;
     }
-    let output = run_program(
-        ctx,
-        &ChiaDialect::new(ClvmFlags::empty()),
-        puzzle,
-        solution,
-        cost_left,
-    )?
-    .1;
+    let output = run_budgeted(ctx, puzzle, solution, &mut cost_left)?;
     let conditions = Vec::<Condition>::from_clvm(&**ctx, output)?;
     let mut signature = None;
     let mut outputs = Vec::new();
@@ -281,6 +266,29 @@ pub fn parse_internal_custody_payment(
         signature: signature.ok_or(InternalCustodyError::UnexpectedConditions)?,
     })
 }
+// CLVM interprets zero as unlimited, so exhaustion must fail before execution.
+fn run_budgeted(
+    ctx: &mut SpendContext,
+    puzzle: NodePtr,
+    solution: NodePtr,
+    remaining: &mut u64,
+) -> Result<NodePtr, DriverError> {
+    if *remaining == 0 {
+        return Err(InternalCustodyError::InvalidProgram.into());
+    }
+    let reduction = run_program(
+        ctx,
+        &ChiaDialect::new(ClvmFlags::empty()),
+        puzzle,
+        solution,
+        *remaining,
+    )?;
+    *remaining = remaining
+        .checked_sub(reduction.0)
+        .ok_or(InternalCustodyError::InvalidProgram)?;
+    Ok(reduction.1)
+}
+
 fn canonical_program(ctx: &mut SpendContext, bytes: &[u8]) -> Result<NodePtr, DriverError> {
     if bytes.is_empty() || bytes.len() > MAX_PROGRAM_BYTES {
         return Err(InternalCustodyError::InvalidProgram.into());

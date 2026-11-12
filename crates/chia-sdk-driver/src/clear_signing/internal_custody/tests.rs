@@ -553,3 +553,55 @@ fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> 
     }
     Ok(())
 }
+
+#[test]
+fn execution_budget_cannot_become_unlimited() -> anyhow::Result<()> {
+    let (policy, original, keys, constants, _) = fixture();
+    let ctx = &mut ctx();
+    let node = original.solution.to_clvm(&mut **ctx)?;
+    let lineage = Solution::from_clvm(&**ctx, node)?.lineage_proof;
+    let hash = chia_sdk_types::puzzles::P2SingletonArgs::new(policy.info().launcher_id)
+        .curry_tree_hash()
+        .into();
+    let mut deposits = vec![
+        Coin::new([1; 32].into(), hash, 2),
+        Coin::new([2; 32].into(), hash, 2),
+    ];
+    deposits.sort_by_key(Coin::coin_id);
+    let spends = policy.payment_spends(ctx, original.coin, lineage, None, &keys, &deposits)?;
+    let mut costs = Vec::new();
+    for spend in &spends {
+        let puzzle = canonical_program(ctx, spend.puzzle_reveal.as_ref())?;
+        let solution = canonical_program(ctx, spend.solution.as_ref())?;
+        costs.push(
+            run_program(
+                ctx,
+                &ChiaDialect::new(ClvmFlags::empty()),
+                puzzle,
+                solution,
+                500_000_000,
+            )?
+            .0,
+        );
+    }
+    let total: u64 = costs.iter().sum();
+    // Exhaustion before another deposit and before the singleton must both fail.
+    for budget in [0, costs[1], costs[1] + costs[2], total - 1] {
+        assert!(
+            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, budget)
+                .is_err(),
+            "budget {budget}"
+        );
+    }
+    for budget in [total, total + 1] {
+        assert!(
+            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, budget)
+                .is_ok(),
+            "budget {budget}"
+        );
+    }
+    assert!(
+        parse_internal_custody_payment(ctx, &policy, &[original], &keys, &constants, 0).is_err()
+    );
+    Ok(())
+}
