@@ -1,6 +1,7 @@
 use crate::{
-    DriverError, InternalCustodyError, InternalCustodyLayer, InternalCustodyPolicy, Layer,
-    P2SingletonLayer, SpendContext, SpendWithConditions, StandardLayer,
+    DriverError, InternalCustodyError, InternalCustodyLayer, InternalCustodyPolicy,
+    InternalCustodyWithdrawal, Layer, P2SingletonLayer, SpendContext, SpendWithConditions,
+    StandardLayer,
 };
 use chia_bls::PublicKey;
 use chia_protocol::{Bytes32, Coin, CoinSpend};
@@ -45,6 +46,7 @@ impl InternalCustodyPolicy {
         }
         Ok(synthetic)
     }
+    /// Construct the committed inner custody layer.
     pub fn inner_layer(&self, ctx: &mut SpendContext) -> Result<InternalCustodyLayer, DriverError> {
         let info = self.info();
         let rekey = self.rekey_puzzle(ctx)?;
@@ -58,6 +60,7 @@ impl InternalCustodyPolicy {
             slow_rekey: info.slow_rekey,
         })
     }
+    /// Construct the full singleton puzzle for this policy.
     pub fn singleton_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let inner_puzzle = self.inner_layer(ctx)?.construct_puzzle(ctx)?;
         ctx.curry(SingletonArgs {
@@ -66,6 +69,15 @@ impl InternalCustodyPolicy {
         })
     }
     pub(crate) fn payment_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
+        let (_, tree) = self.payment_completion_tree();
+        let root = tree.root();
+        let inner_puzzle = ctx.alloc(&clvm_list!(2u8, 2u8, 5u8))?;
+        ctx.curry(InternalCustodyMerkleArgs {
+            inner_puzzle,
+            merkle_root: root,
+        })
+    }
+    fn payment_completion_tree(&self) -> (InternalCustodyAchCompletionArgs, MerkleTree) {
         let complete = InternalCustodyAchCompletionArgs {
             timelock: self.info().payment_clawback,
         };
@@ -74,16 +86,11 @@ impl InternalCustodyPolicy {
                 .curry_tree_hash()
                 .into(),
         };
-        let root = MerkleTree::new(&[
+        let tree = MerkleTree::new(&[
             complete.curry_tree_hash().into(),
             clawback.curry_tree_hash().into(),
-        ])
-        .root();
-        let inner_puzzle = ctx.alloc(&clvm_list!(2u8, 2u8, 5u8))?;
-        ctx.curry(InternalCustodyMerkleArgs {
-            inner_puzzle,
-            merkle_root: root,
-        })
+        ]);
+        (complete, tree)
     }
     fn rekey_puzzle(&self, ctx: &mut SpendContext) -> Result<NodePtr, DriverError> {
         let complete = InternalCustodyRekeyCompletionArgs {
@@ -128,16 +135,8 @@ impl InternalCustodyPolicy {
         {
             return Err(DriverError::WrongPuzzleHash);
         }
-        let complete = InternalCustodyAchCompletionArgs {
-            timelock: self.info().payment_clawback,
-        };
-        let clawback = InternalCustodyAchClawbackArgs {
-            return_puzzle_hash: P2SingletonArgs::new(self.info().launcher_id)
-                .curry_tree_hash()
-                .into(),
-        };
+        let (complete, tree) = self.payment_completion_tree();
         let complete_hash = complete.curry_tree_hash();
-        let tree = MerkleTree::new(&[complete_hash.into(), clawback.curry_tree_hash().into()]);
         let proof = tree
             .proof(complete_hash.into())
             .ok_or(InternalCustodyError::InvalidPolicy)?;
@@ -153,39 +152,26 @@ impl InternalCustodyPolicy {
             ctx.serialize(&solution)?,
         ))
     }
-    /// Construct a payment without deposits. See `payment_spends` for absorption.
-    /// This does not check current chain availability.
-    pub fn payment_spend(
-        &self,
-        ctx: &mut SpendContext,
-        coin: Coin,
-        proof: Proof,
-        amount: u64,
-        destination: Bytes32,
-        signers: &[PublicKey],
-    ) -> Result<CoinSpend, DriverError> {
-        let mut spends =
-            self.payment_spends(ctx, coin, proof, amount, destination, signers, &[])?;
-        Ok(spends.remove(0))
-    }
-
     /// Construct an authorized withdrawal, deposit absorption, or both. The first
     /// spend is the singleton; remaining inputs are p2-singleton deposits ordered
     /// by coin ID. No fees or other delegated conditions are permitted here.
     /// Deposit totals must be even to preserve the singleton's odd amount.
-    /// Claim-only uses a zero destination and creates no pending payment.
+    /// Pass no withdrawal for claim-only; it creates no pending payment.
     /// Callers must check current input availability and relative-time eligibility.
-    #[allow(clippy::too_many_arguments)]
     pub fn payment_spends(
         &self,
         ctx: &mut SpendContext,
         coin: Coin,
         proof: Proof,
-        amount: u64,
-        destination: Bytes32,
+        withdrawal: Option<InternalCustodyWithdrawal>,
         signers: &[PublicKey],
         deposits: &[Coin],
     ) -> Result<Vec<CoinSpend>, DriverError> {
+        let (amount, destination) =
+            withdrawal.map_or((0, Bytes32::default()), |p| (p.amount, p.destination));
+        if withdrawal.is_some_and(|p| p.amount == 0) {
+            return Err(InternalCustodyError::InvalidPayment.into());
+        }
         let incoming = self.validate_deposits(coin, deposits)?;
         let remaining = coin
             .amount
@@ -304,7 +290,9 @@ impl InternalCustodyPolicy {
         let puzzle_hash: Bytes32 = P2SingletonArgs::new(self.info().launcher_id)
             .curry_tree_hash()
             .into();
-        if deposits.len() > 63 || !deposits.windows(2).all(|w| w[0].coin_id() < w[1].coin_id()) {
+        if deposits.len() >= super::MAX_INTERNAL_CUSTODY_INPUTS
+            || !deposits.windows(2).all(|w| w[0].coin_id() < w[1].coin_id())
+        {
             return Err(InternalCustodyError::InvalidPayment.into());
         }
         let mut total = 0u64;

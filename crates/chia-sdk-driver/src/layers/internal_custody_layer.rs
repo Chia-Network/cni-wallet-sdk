@@ -15,14 +15,21 @@ use clvmr::{Allocator, NodePtr};
 /// it does not authorize a spend or establish a trusted policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyLayer {
+    /// Merkle root committing to the authorized custody puzzles.
     pub puzzle_root: Bytes32,
+    /// Rekey branch puzzle commitment.
     pub rekey_puzzle_hash: Bytes32,
+    /// ACH branch puzzle commitment.
     pub payment_puzzle_hash: Bytes32,
+    /// Minimum singleton age in seconds before a withdrawal or absorption.
     pub withdrawal_timelock: u64,
+    /// Base rekey timelock in seconds.
     pub rekey_increment: u64,
+    /// Additional penalty in seconds for slower rekey paths.
     pub slow_rekey: u64,
 }
 impl InternalCustodyLayer {
+    /// Return the typed curry arguments for this layer.
     pub fn args(&self) -> InternalCustodyPrefarmArgs {
         InternalCustodyPrefarmArgs {
             mod_hash: InternalCustodyPrefarmArgs::mod_hash().into(),

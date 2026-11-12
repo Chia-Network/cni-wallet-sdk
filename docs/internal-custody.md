@@ -14,10 +14,10 @@ and ClawbackV2. Its clear-signing path deliberately does not call
 - `InternalCustodyPolicy`: validated, bounded public policy/proof data. `new`
   accepts typed configuration; `from_legacy_bytes` imports the existing Python
   RootDerivation format. Both are independent of request JSON or an application.
-  `payment_spend` constructs a payment without deposits. `payment_spends` also
+  `payment_spends` accepts an optional typed outgoing payment and
   supports explicit deposit absorption, alone or with a payment; its inputs are
   the singleton followed by up to 63 p2-singleton coins sorted by coin ID.
-  Neither method adds fees or arbitrary conditions, launches vaults or discovers chain state.
+  Construction does not add fees or arbitrary conditions, launches vaults or discovers chain state.
 - `parse_internal_custody_payment`: takes a `SpendContext`, supplied policy,
   protocol `CoinSpend` slice, frozen sorted participant keys, `AggSigConstants`
   and an explicit execution cost limit. It returns `VerifiedInternalCustodyPayment`.
@@ -49,8 +49,8 @@ withdrawal timelock, exact continuation and optional pending-payment outputs,
 deposit announcement bindings and single AGG_SIG_ME condition. Every input is
 executed under one shared cost budget. Incoming totals use checked arithmetic;
 odd totals, duplicate/unordered inputs and mismatched deposits fail closed.
-Claim-only requires a zero destination, a positive incoming amount and no outgoing
-amount. Its verified `pending_coin` is `None`; it has no completion step. Signature
+Claim-only is expressed with no withdrawal and requires a positive incoming amount.
+The canonical CLVM encoding uses zero outgoing amount and destination. Its verified `pending_payment` is `None`; it has no completion step. Signature
 message construction uses the existing `RequiredBlsSignature::from_condition`.
 Unexpected effects or signature modes fail, rather than producing a partial
 summary that could enter blind signing.
@@ -84,6 +84,10 @@ solution reconstruction, layer round trips, reference message/destination/coin
 agreement, threshold plus synthetic-offset signatures, invalid participant or
 augmentation contexts, hidden fee conditions, forged lineage, unsupported
 operations, program/cost bounds and malformed policy/proof data.
+
+SDK-owned consensus tests also construct two deposits, verify both absorption forms
+with aggregate signatures, reject incomplete input/signature sets, and enforce the
+pending-payment completion timelock.
 
 Run:
 

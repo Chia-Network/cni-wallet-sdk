@@ -263,4 +263,18 @@ mod tests {
             assert_eq!(merkle_tree.proof(leaf), Some(MerkleProof::new(path, proof)));
         }
     }
+
+    #[test]
+    fn proof_roots_validate_paths_and_depth() {
+        let tree = MerkleTree::new(&[[1; 32].into(), [2; 32].into(), [3; 32].into()]);
+        for leaf in tree.leaves() {
+            let proof = tree.proof(leaf).unwrap();
+            assert_eq!(proof.root(leaf), Some(tree.root()));
+        }
+        assert_eq!(MerkleProof::new(1, vec![]).root([1; 32].into()), None);
+        assert_eq!(
+            MerkleProof::new(0, vec![[0; 32].into(); 33]).root([1; 32].into()),
+            None
+        );
+    }
 }

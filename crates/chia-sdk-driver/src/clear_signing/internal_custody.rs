@@ -17,22 +17,46 @@ use clvmr::{
     serde::{node_from_bytes, node_to_bytes},
 };
 
+// Bound each untrusted puzzle/solution before decoding, independently of CLVM cost.
+const MAX_PROGRAM_BYTES: usize = 256 * 1024;
+
 /// Facts derived from the exact payment and/or deposit-absorption spend.
-/// A positive outgoing amount creates `pending_coin`; its confirmation starts
+/// A positive outgoing amount creates `pending_payment`; its confirmation starts
 /// the clawback period. Claim-only has no pending coin or completion step.
 /// Neither this record nor the verifier establishes chain freshness/unspentness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InternalCustodyPayment {
+    /// Singleton input authorized by this operation.
     pub input_coin: Coin,
+    /// Singleton continuation containing the resulting vault funds.
     pub vault_child: Coin,
-    pub pending_coin: Option<Coin>,
+    /// Outgoing ACH payment, absent for claim-only absorption.
+    pub pending_payment: Option<InternalCustodyPendingPayment>,
+    /// Total deposited mojos absorbed by this operation.
     pub incoming_amount: u64,
-    pub outgoing_amount: u64,
+    /// Number of absorbed p2-singleton inputs.
     pub deposit_count: u32,
+    /// Permanent identity of the custody singleton.
     pub launcher_id: Bytes32,
-    pub destination: Bytes32,
+    /// Delay in seconds before a pending payment can be completed.
     pub clawback_seconds: u64,
+    /// Minimum age in seconds of the singleton input.
     pub withdrawal_seconds: u64,
+}
+
+/// The outgoing ACH coin and the destination committed by its puzzle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InternalCustodyPendingPayment {
+    /// Pending coin whose confirmation starts the clawback interval.
+    pub coin: Coin,
+    /// Recipient puzzle hash committed to the pending coin.
+    pub destination: Bytes32,
+}
+impl InternalCustodyPayment {
+    /// Outgoing amount in mojos, or zero for claim-only absorption.
+    pub fn outgoing_amount(&self) -> u64 {
+        self.pending_payment.map_or(0, |p| p.coin.amount)
+    }
 }
 
 /// An immutable verified payment and signing context. Only the parser can create
@@ -45,12 +69,15 @@ pub struct VerifiedInternalCustodyPayment {
     signature: RequiredBlsSignature,
 }
 impl VerifiedInternalCustodyPayment {
+    /// Return the verified transaction effects.
     pub fn payment(&self) -> &InternalCustodyPayment {
         &self.payment
     }
+    /// Return the exact frozen signing subset.
     pub fn selected_signers(&self) -> &[PublicKey] {
         &self.selected_signers
     }
+    /// Return the aggregate-key signature condition extracted from execution.
     pub fn required_signature(&self) -> &RequiredBlsSignature {
         &self.signature
     }
@@ -72,15 +99,17 @@ impl VerifiedInternalCustodyPayment {
         }
         Ok(self.signature.sign_partial(key)?)
     }
+    /// Verify a share only for a participant in the verified subset.
     pub fn verify_partial(&self, participant: &PublicKey, signature: &Signature) -> bool {
         self.selected_signers.contains(participant)
             && self.signature.verify_partial(participant, signature)
     }
 }
 
-/// Verify the exact supported initial payment against the supplied policy and
-/// caller-selected network signature-domain constants. Accepts only the singleton and its bound deposit inputs. Rejects rekeys, arbitrary
-/// conditions and alternative signing modes. Input programs must be canonical.
+/// Verify a payment and/or deposit absorption against the supplied policy and
+/// caller-selected network signature-domain constants. Accepts only the singleton
+/// and its bound deposit inputs. Rejects rekeys, arbitrary conditions and alternative
+/// signing modes. Input programs must be canonical.
 ///
 /// `ctx` must use an appropriately bounded allocator for untrusted inputs. CLVM
 /// execution uses the explicit `max_cost` and the consensus dialect directly,
@@ -94,7 +123,10 @@ pub fn parse_internal_custody_payment(
     constants: &AggSigConstants,
     max_cost: u64,
 ) -> Result<VerifiedInternalCustodyPayment, DriverError> {
-    let Some(spend) = coin_spends.first().filter(|_| coin_spends.len() <= 64) else {
+    let Some(spend) = coin_spends
+        .first()
+        .filter(|_| coin_spends.len() <= crate::MAX_INTERNAL_CUSTODY_INPUTS)
+    else {
         return Err(InternalCustodyError::UnsupportedOperation.into());
     };
     let puzzle = canonical_program(ctx, spend.puzzle_reveal.as_ref())?;
@@ -126,8 +158,10 @@ pub fn parse_internal_custody_payment(
         ctx,
         spend.coin,
         singleton.lineage_proof,
-        action.outgoing,
-        action.destination,
+        (action.outgoing > 0).then_some(crate::InternalCustodyWithdrawal {
+            amount: action.outgoing,
+            destination: action.destination,
+        }),
         selected_signers,
         &deposits,
     )?;
@@ -145,18 +179,17 @@ pub fn parse_internal_custody_payment(
             spend.coin.amount + action.incoming - action.outgoing,
         ),
         incoming_amount: action.incoming,
-        outgoing_amount: action.outgoing,
         deposit_count: u32::try_from(deposits.len())
             .map_err(|_| InternalCustodyError::InvalidPayment)?,
-        pending_coin: (action.outgoing > 0).then(|| {
-            Coin::new(
+        pending_payment: (action.outgoing > 0).then(|| InternalCustodyPendingPayment {
+            destination: action.destination,
+            coin: Coin::new(
                 spend.coin.coin_id(),
                 ctx.tree_hash(pending_puzzle).into(),
                 action.outgoing,
-            )
+            ),
         }),
         launcher_id: info.launcher_id,
-        destination: action.destination,
         clawback_seconds: info.payment_clawback,
         withdrawal_seconds: info.withdrawal_timelock,
     };
@@ -228,7 +261,7 @@ pub fn parse_internal_custody_payment(
         }
     }
     let expected_outputs: Vec<_> = std::iter::once(payment.vault_child)
-        .chain(payment.pending_coin)
+        .chain(payment.pending_payment.map(|p| p.coin))
         .collect();
     let expected_announcements: Vec<chia_protocol::Bytes> =
         deposits.iter().map(|c| c.coin_id().into()).collect();
@@ -249,7 +282,7 @@ pub fn parse_internal_custody_payment(
     })
 }
 fn canonical_program(ctx: &mut SpendContext, bytes: &[u8]) -> Result<NodePtr, DriverError> {
-    if bytes.is_empty() || bytes.len() > 256 * 1024 {
+    if bytes.is_empty() || bytes.len() > MAX_PROGRAM_BYTES {
         return Err(InternalCustodyError::InvalidProgram.into());
     }
     let node = node_from_bytes(ctx, bytes)?;

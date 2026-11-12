@@ -94,16 +94,19 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
     let (policy, spend, keys, constants, request) = fixture();
     let verified = parse(&policy, &spend, &keys, &constants)?;
     let facts = verified.payment();
-    assert_eq!(facts.pending_coin.unwrap().amount, 2_000_000_000);
     assert_eq!(
-        facts.input_coin.amount - facts.pending_coin.unwrap().amount,
+        facts.pending_payment.map(|p| p.coin).unwrap().amount,
+        2_000_000_000
+    );
+    assert_eq!(
+        facts.input_coin.amount - facts.pending_payment.map(|p| p.coin).unwrap().amount,
         facts.vault_child.amount
     );
     assert_eq!(facts.clawback_seconds, 2);
     assert_eq!(facts.withdrawal_seconds, 1);
     let oracle: Value = serde_json::from_str(include_str!("tests/expected.json"))?;
     assert_eq!(
-        facts.destination,
+        facts.pending_payment.unwrap().destination,
         bytes::<32>(&oracle["destination_puzzle_hash"]).into()
     );
     assert_eq!(
@@ -123,15 +126,18 @@ fn reference_payment_layer_construction_and_signatures() -> anyhow::Result<()> {
     let ctx = &mut ctx();
     let solution = spend.solution.to_clvm(&mut **ctx)?;
     let solution = SingletonSolution::<NodePtr>::from_clvm(&**ctx, solution)?;
-    let rebuilt = policy.payment_spend(
+    let rebuilt = policy.payment_spends(
         ctx,
         spend.coin,
         solution.lineage_proof,
-        facts.pending_coin.unwrap().amount,
-        facts.destination,
+        Some(crate::InternalCustodyWithdrawal {
+            amount: facts.outgoing_amount(),
+            destination: facts.pending_payment.unwrap().destination,
+        }),
         &keys,
+        &[],
     )?;
-    assert_eq!(spend, rebuilt);
+    assert_eq!(vec![spend.clone()], rebuilt);
     let layer = policy.inner_layer(ctx)?;
     let puzzle = layer.construct_puzzle(ctx)?;
     assert_eq!(
@@ -293,19 +299,6 @@ fn legacy_policy_and_proof_bounds_fail_closed() {
         )
         .is_err()
     );
-    let tree = chia_sdk_types::MerkleTree::new(&[[1; 32].into(), [2; 32].into(), [3; 32].into()]);
-    for leaf in tree.leaves() {
-        let proof = tree.proof(leaf).unwrap();
-        assert_eq!(proof.root(leaf), Some(tree.root()));
-    }
-    assert_eq!(
-        chia_sdk_types::MerkleProof::new(1, vec![]).root([1; 32].into()),
-        None
-    );
-    assert_eq!(
-        chia_sdk_types::MerkleProof::new(0, vec![[0; 32].into(); 33]).root([1; 32].into()),
-        None
-    );
 }
 
 #[test]
@@ -314,8 +307,11 @@ fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow:
     let verified = parse(&policy, &spend, &keys, &constants)?;
     let facts = verified.payment();
     let ctx = &mut ctx();
-    let completion =
-        policy.completion_spend(ctx, facts.pending_coin.unwrap(), facts.destination)?;
+    let completion = policy.completion_spend(
+        ctx,
+        facts.pending_payment.map(|p| p.coin).unwrap(),
+        facts.pending_payment.unwrap().destination,
+    )?;
     let puzzle = completion.puzzle_reveal.to_clvm(&mut **ctx)?;
     let solution = completion.solution.to_clvm(&mut **ctx)?;
     let output = run_program(
@@ -331,7 +327,7 @@ fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow:
     assert!(conditions.iter().any(
         |c| matches!(c,Condition::AssertSecondsRelative(c) if c.seconds == facts.clawback_seconds)
     ));
-    assert!(conditions.iter().any(|c| matches!(c,Condition::CreateCoin(c) if c.puzzle_hash == facts.destination && c.amount == facts.pending_coin.unwrap().amount)));
+    assert!(conditions.iter().any(|c| matches!(c,Condition::CreateCoin(c) if c.puzzle_hash == facts.pending_payment.unwrap().destination && c.amount == facts.pending_payment.map(|p| p.coin).unwrap().amount)));
     assert!(
         !conditions
             .iter()
@@ -339,7 +335,11 @@ fn completion_preserves_destination_and_requires_the_clawback_delay() -> anyhow:
     );
     assert!(
         policy
-            .completion_spend(ctx, facts.pending_coin.unwrap(), [0; 32].into())
+            .completion_spend(
+                ctx,
+                facts.pending_payment.map(|p| p.coin).unwrap(),
+                [0; 32].into()
+            )
             .is_err()
     );
     Ok(())
@@ -370,8 +370,10 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
             ctx,
             spend.coin,
             original.lineage_proof,
-            outgoing,
-            destination,
+            (outgoing > 0).then_some(crate::InternalCustodyWithdrawal {
+                amount: outgoing,
+                destination,
+            }),
             &keys,
             &deposits,
         )?;
@@ -379,10 +381,13 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
             parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
         let facts = verified.payment();
         assert_eq!(facts.incoming_amount, 204);
-        assert_eq!(facts.outgoing_amount, outgoing);
+        assert_eq!(facts.outgoing_amount(), outgoing);
         assert_eq!(facts.deposit_count, 2);
         assert_eq!(facts.vault_child.amount, spend.coin.amount + 204 - outgoing);
-        assert_eq!(facts.pending_coin.is_none(), outgoing == 0);
+        assert_eq!(
+            facts.pending_payment.map(|p| p.coin).is_none(),
+            outgoing == 0
+        );
         assert!(
             parse_internal_custody_payment(
                 ctx,
@@ -421,29 +426,13 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
     ] {
         assert!(
             policy
-                .payment_spends(
-                    ctx,
-                    spend.coin,
-                    original.lineage_proof,
-                    0,
-                    Bytes32::default(),
-                    &keys,
-                    &bad
-                )
+                .payment_spends(ctx, spend.coin, original.lineage_proof, None, &keys, &bad)
                 .is_err()
         );
     }
     assert!(
         policy
-            .payment_spends(
-                ctx,
-                spend.coin,
-                original.lineage_proof,
-                0,
-                Bytes32::default(),
-                &keys,
-                &[]
-            )
+            .payment_spends(ctx, spend.coin, original.lineage_proof, None, &keys, &[])
             .is_err()
     );
     assert!(
@@ -452,12 +441,115 @@ fn verifies_absorption_and_claim_only_with_exact_bound_inputs() -> anyhow::Resul
                 ctx,
                 spend.coin,
                 original.lineage_proof,
-                0,
-                [9; 32].into(),
+                Some(crate::InternalCustodyWithdrawal {
+                    amount: 0,
+                    destination: [9; 32].into()
+                }),
                 &keys,
                 &deposits
             )
             .is_err()
     );
+    Ok(())
+}
+
+#[test]
+fn absorption_and_claim_only_pass_independent_consensus() -> anyhow::Result<()> {
+    use chia_protocol::SpendBundle;
+    use chia_sdk_test::Simulator;
+    use chia_sdk_types::TESTNET11_CONSTANTS;
+    let (policy, original, keys, _, request) = fixture();
+    let constants = AggSigConstants::new(TESTNET11_CONSTANTS.agg_sig_me_additional_data);
+    let offset = SecretKey::from_bytes(&bytes::<32>(
+        &request["operation"]["sum_hints"][0]["synthetic_offset"],
+    ))?;
+    for outgoing in [0, original.coin.amount + 101] {
+        let ctx = &mut ctx();
+        let node = original.solution.to_clvm(&mut **ctx)?;
+        let lineage = Solution::from_clvm(&**ctx, node)?.lineage_proof;
+        let mut sim = Simulator::new();
+        sim.insert_coin(original.coin);
+        let deposit_hash = chia_sdk_types::puzzles::P2SingletonArgs::new(policy.info().launcher_id)
+            .curry_tree_hash()
+            .into();
+        let mut deposits = vec![
+            sim.new_coin(deposit_hash, 101),
+            sim.new_coin(deposit_hash, 103),
+        ];
+        deposits.sort_by_key(Coin::coin_id);
+        sim.create_block();
+        sim.pass_time(policy.info().withdrawal_timelock + 1);
+        let withdrawal = (outgoing > 0).then_some(crate::InternalCustodyWithdrawal {
+            amount: outgoing,
+            destination: [9; 32].into(),
+        });
+        let spends =
+            policy.payment_spends(ctx, original.coin, lineage, withdrawal, &keys, &deposits)?;
+        let verified =
+            parse_internal_custody_payment(ctx, &policy, &spends, &keys, &constants, 500_000_000)?;
+        let facts = *verified.payment();
+        let mut shares = Vec::new();
+        for secret in (0..3).map(key).filter(|k| keys.contains(&k.public_key())) {
+            shares.push(verified.sign_partial(&secret)?);
+        }
+        shares.push(verified.required_signature().sign_partial(&offset)?);
+        let signature = aggregate(&shares);
+        assert!(
+            sim.new_transaction(SpendBundle::new(vec![spends[0].clone()], signature.clone()))
+                .is_err()
+        );
+        assert!(
+            sim.new_transaction(SpendBundle::new(spends[1..].to_vec(), Signature::default()))
+                .is_err()
+        );
+        assert!(
+            sim.new_transaction(SpendBundle::new(spends.clone(), Signature::default()))
+                .is_err()
+        );
+        sim.new_transaction(SpendBundle::new(spends, signature))?;
+        assert_eq!(
+            sim.children(original.coin.coin_id()).len(),
+            if outgoing == 0 { 1 } else { 2 }
+        );
+        assert!(
+            sim.coin_state(facts.vault_child.coin_id())
+                .unwrap()
+                .created_height
+                .is_some()
+        );
+        assert_eq!(
+            facts.vault_child.amount,
+            original.coin.amount + 204 - outgoing
+        );
+        for deposit in deposits {
+            assert!(
+                sim.coin_state(deposit.coin_id())
+                    .unwrap()
+                    .spent_height
+                    .is_some()
+            );
+        }
+        if let Some(pending) = facts.pending_payment {
+            let complete = policy.completion_spend(ctx, pending.coin, pending.destination)?;
+            assert!(
+                sim.new_transaction(SpendBundle::new(
+                    vec![complete.clone()],
+                    Signature::default()
+                ))
+                .is_err()
+            );
+            sim.pass_time(facts.clawback_seconds + 1);
+            sim.new_transaction(SpendBundle::new(vec![complete], Signature::default()))?;
+            let payout = Coin::new(pending.coin.coin_id(), pending.destination, outgoing);
+            assert!(
+                sim.coin_state(payout.coin_id())
+                    .unwrap()
+                    .created_height
+                    .is_some()
+            );
+        } else {
+            assert_eq!(outgoing, 0);
+        }
+    }
     Ok(())
 }
