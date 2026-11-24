@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-driver"
-version = "0.37.1"
+version = "0.39.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Driver code for interacting with standard puzzles on the Chia blockchain."
@@ -20,6 +20,7 @@ workspace = true
 [features]
 chip-0008 = ["chia-sdk-types/chip-0008"]
 chip-0021 = ["chia-sdk-types/chip-0021"]
+pooling = ["chia-sdk-types/pooling"]
 chip-0035 = ["chia-sdk-types/chip-0035"]
 chip-0037 = ["chia-sdk-types/chip-0037"]
 chip-0052 = ["chia-sdk-types/chip-0052"]
@@ -54,6 +55,7 @@ getrandom = { workspace = true }
 bip39 = { workspace = true }
 
 [dev-dependencies]
+chialisp = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 chia-sdk-test = { workspace = true }

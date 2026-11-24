@@ -1,7 +1,7 @@
 [package]
 publish = false
 name = "chia-wallet-sdk-uniffi"
-version = "0.37.1"
+version = "0.39.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "UniFFI bindings for the Chia Wallet SDK, used to generate Go, C#, C++, Kotlin, and Swift bindings."
@@ -33,6 +33,10 @@ uniffi = { workspace = true, features = ["tokio"] }
 chia-sdk-bindings = { workspace = true, features = ["uniffi"] }
 bindy = { workspace = true, features = ["uniffi"] }
 bindy-macro = { workspace = true }
+
+[target.aarch64-linux-android.dependencies]
+openssl = { version = "0.10.73", features = ["vendored"] }
+openssl-sys = { version = "0.9.108", features = ["vendored"] }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 openssl = { version = "0.10.73", features = ["vendored"] }

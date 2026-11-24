@@ -61,6 +61,20 @@ export declare class AggSigAmount {
   set message(value: Uint8Array)
 }
 
+export declare class AggSigConstants {
+  clone(): AggSigConstants
+  constructor(aggSigMe: Uint8Array)
+  static mainnet(): AggSigConstants
+  static testnet11(): AggSigConstants
+  me(): Buffer
+  parent(): Buffer
+  puzzle(): Buffer
+  amount(): Buffer
+  parentAmount(): Buffer
+  puzzleAmount(): Buffer
+  parentPuzzle(): Buffer
+}
+
 export declare class AggSigMe {
   clone(): AggSigMe
   constructor(publicKey: PublicKey, message: Uint8Array)
@@ -335,6 +349,7 @@ export declare class Auction {
   bidAnnouncementId(bid: AuctionBid): Buffer
   bidActionSpend(clvm: Clvm, bid: AuctionBid, grace: boolean): Spend
   endActionSpend(clvm: Clvm, nft: Nft): Spend
+  buyNowActionSpends(clvm: Clvm, puzzleHash: Uint8Array, grace: boolean, nft: Nft): AuctionBuyNow
   cancelActionSpend(clvm: Clvm, nft: Nft): Spend
   cancelAuthorization(clvm: Clvm): Array<Program>
   unlockNft(clvm: Clvm, nft: Nft): Nft
@@ -378,6 +393,16 @@ export declare class AuctionBpsPayment {
   set puzzleHash(value: Uint8Array)
 }
 
+export declare class AuctionBuyNow {
+  clone(): AuctionBuyNow
+  get bid(): AuctionBid
+  set bid(value: AuctionBid)
+  get actionSpends(): Array<Spend>
+  set actionSpends(value: Array<Spend>)
+  get nft(): Nft
+  set nft(value: Nft)
+}
+
 export declare class AuctionChildState {
   clone(): AuctionChildState
   get state(): AuctionState
@@ -392,6 +417,7 @@ export declare class AuctionInfo {
   clone(): AuctionInfo
   royaltyBps(): bigint
   reserveAmountForBid(bidAmount: bigint): bigint | null
+  availableBuyNowPrice(): bigint | null
   bidActionHash(): Buffer
   endActionHash(): Buffer
   cancelActionHash(): Buffer
@@ -423,7 +449,7 @@ export declare class AuctionLaunch {
   reserveAssetId(): Buffer | null
   singletonPuzzleHash(): Buffer
   singletonAmount(): bigint
-  intoAuction(nftRoyalty: RoyaltyInfo, reserveLineageProof?: LineageProof | undefined | null): Auction
+  intoAuction(nft: Nft, reserveLineageProof?: LineageProof | undefined | null): Auction
 }
 
 export declare class AuctionPayments {
@@ -451,13 +477,15 @@ export declare class AuctionReserve {
 
 export declare class AuctionSettings {
   clone(): AuctionSettings
-  constructor(bidVerifier: AuctionBidVerifier, timings: AuctionTimings, payments: AuctionPayments)
+  constructor(bidVerifier: AuctionBidVerifier, timings: AuctionTimings, payments: AuctionPayments, buyNowPrice?: bigint | undefined | null)
   get bidVerifier(): AuctionBidVerifier
   set bidVerifier(value: AuctionBidVerifier)
   get timings(): AuctionTimings
   set timings(value: AuctionTimings)
   get payments(): AuctionPayments
   set payments(value: AuctionPayments)
+  get buyNowPrice(): bigint | null
+  set buyNowPrice(value: bigint | undefined | null)
 }
 
 export declare class AuctionState {
@@ -823,7 +851,7 @@ export declare class CatalogRegistryActualNeighborsResult {
 
 export declare class CatalogRegistryConstants {
   clone(): CatalogRegistryConstants
-  static get(testnet11: boolean): CatalogRegistryConstants
+  static new(launcherId: Uint8Array, royaltyAddress: Uint8Array, royaltyBasisPoints: number, precommitPayoutPuzzleHash: Uint8Array, relativeBlockHeight: number, priceSingletonLauncherId: Uint8Array): CatalogRegistryConstants
   withPriceSingleton(priceSingletonLauncherId: Uint8Array): CatalogRegistryConstants
   withLauncherId(launcherId: Uint8Array): CatalogRegistryConstants
   get launcherId(): Buffer
@@ -1042,6 +1070,7 @@ export declare class Clvm {
   addCoinSpend(coinSpend: CoinSpend): void
   spendCoin(coin: Coin, spend: Spend): void
   coinSpends(): Array<CoinSpend>
+  requiredSignatures(coinSpends: Array<CoinSpend>, constants: AggSigConstants): RequiredSignatures
   parse(program: string): Program
   deserialize(value: Uint8Array): Program
   deserializeWithBackrefs(value: Uint8Array): Program
@@ -1072,6 +1101,7 @@ export declare class Clvm {
   spendOption(option: OptionContract, innerSpend: Spend): OptionContract | null
   spendStreamedAsset(streamedAsset: StreamedAsset, paymentTime: bigint, clawback: boolean): void
   mintVault(parentCoinId: Uint8Array, custodyHash: Uint8Array, memos: Program): VaultMint
+  mintPlotNft(parentCoinId: Uint8Array, poolState: PoolState, secondsDelay: bigint, delayedPuzzleHash: Uint8Array, genesisChallenge: Uint8Array): PlotNftMint
   createBulletin(parentCoinId: Uint8Array, hiddenPuzzleHash: Uint8Array, messages: Array<BulletinMessage>): CreatedBulletin
   mipsSpend(coin: Coin, delegatedSpend: Spend): MipsSpend
   nftMetadata(value: NftMetadata): Program
@@ -1119,9 +1149,9 @@ export declare class Clvm {
   sendMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   receiveMessage(mode: number, message: Uint8Array, data: Array<Program>): Program
   softfork(cost: bigint, rest: Program): Program
-  meltSingleton(): Program
+  meltSingleton(puzzleHash?: Uint8Array | undefined | null): Program
   transferNft(launcherId: Uint8Array | undefined | null, tradePrices: Array<TradePrice>, singletonInnerPuzzleHash?: Uint8Array | undefined | null): Program
-  runCatTail(program: Program, solution: Program): Program
+  runCatTail(puzzleHash: Uint8Array | undefined | null, program: Program, solution: Program): Program
   updateNftMetadata(updaterPuzzleReveal: Program, updaterSolution: Program): Program
   updateDatastoreMerkleRoot(newMerkleRoot: Uint8Array, memos: Array<Uint8Array>): Program
   parseChildStreamedAsset(coinSpend: CoinSpend): StreamedAssetParsingResult
@@ -1133,20 +1163,20 @@ export declare class Clvm {
   rewardDistributorFromSpend(spend: CoinSpend, reserveLineageProof: LineageProof | undefined | null, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromParentSpend(parentSpend: CoinSpend, constants: RewardDistributorConstants): RewardDistributor | null
   rewardDistributorFromEveCoinSpend(constants: RewardDistributorConstants, initialState: RewardDistributorState, eveCoinSpend: CoinSpend, reserveParentId: Uint8Array, reserveLineageProof: LineageProof): RewardDistributorInfoFromEveCoin | null
-  launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, mainnet: boolean, comment: string): RewardDistributorLaunchResult
+  launchRewardDistributor(offer: SpendBundle, firstEpochStart: bigint, catRefundPuzzleHash: Uint8Array, constants: RewardDistributorConstants, aggSigConstants: AggSigConstants, comment: string): RewardDistributorLaunchResult
   rewardDistributorFromMempoolItem(mempoolItem: SpendBundle, constants: RewardDistributorConstants): RewardDistributor | null
   catalogRegistryFromSpend(spend: CoinSpend, constants: CatalogRegistryConstants): CatalogRegistry | null
   catalogRegistryFromParentSpend(parentSpend: CoinSpend, constants: CatalogRegistryConstants): CatalogRegistry | null
   catalogRegistryFromMempoolItem(mempoolItem: SpendBundle, constants: CatalogRegistryConstants): CatalogRegistry | null
-  launchCatalogRegistry(offer: SpendBundle, initialRegistrationPrice: bigint, constants: CatalogRegistryConstants, initialRegistrationAssetId: Uint8Array, mainnet: boolean): CatalogRegistryLaunchResult
+  launchCatalogRegistry(offer: SpendBundle, initialRegistrationPrice: bigint, constants: CatalogRegistryConstants, initialRegistrationAssetId: Uint8Array, aggSigConstants: AggSigConstants): CatalogRegistryLaunchResult
   xchandlesRegistryFromSpend(spend: CoinSpend, constants: XchandlesConstants): XchandlesRegistry | null
   xchandlesRegistryFromParentSpend(parentSpend: CoinSpend, constants: XchandlesConstants): XchandlesRegistry | null
   xchandlesRegistryFromMempoolItem(mempoolItem: SpendBundle, constants: XchandlesConstants): XchandlesRegistry | null
-  launchXchandlesRegistry(offer: SpendBundle, initialBaseRegistrationPrice: bigint, initialRegistrationPeriod: bigint, constants: XchandlesConstants, initialRegistrationAssetId: Uint8Array, mainnet: boolean): XchandlesRegistryLaunchResult
+  launchXchandlesRegistry(offer: SpendBundle, initialBaseRegistrationPrice: bigint, initialRegistrationPeriod: bigint, constants: XchandlesConstants, initialRegistrationAssetId: Uint8Array, aggSigConstants: AggSigConstants): XchandlesRegistryLaunchResult
   createOfferSecurityCoin(offer: SpendBundle): OfferSecurityCoinDetails
   createSecurityCoinWithPk(xchSettlementCoin: Coin, publicKey: PublicKey): Coin
   createOfferSecurityCoinWithKey(offer: SpendBundle, securityCoinSk: SecretKey): OfferSecurityCoinDetails
-  spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, mainnet: boolean): Signature
+  spendOfferSecurityCoin(securityCoinDetails: OfferSecurityCoinDetails, conditions: Array<Program>, aggSigConstants: AggSigConstants): Signature
   spendSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array, nonce: Uint8Array, destinationPuzzleHash: Uint8Array): SettlementNftSpendResult
   offerSettlementCats(offer: SpendBundle, assetId: Uint8Array): Array<Cat>
   offerSettlementNft(offer: SpendBundle, nftLauncherId: Uint8Array): Nft | null
@@ -1381,6 +1411,27 @@ export declare class CompactLineageProof {
 export declare class Connector {
   clone(): Connector
   constructor(cert: Certificate)
+}
+
+export declare class ConsensusConstants {
+  clone(): ConsensusConstants
+  constructor(genesisChallenge: Uint8Array, aggSigMe: Uint8Array)
+  static mainnet(): ConsensusConstants
+  static testnet11(): ConsensusConstants
+  genesisChallenge(): Buffer
+  aggSigConstants(): AggSigConstants
+  maxBlockCostClvm(): bigint
+  costPerByte(): bigint
+  hardForkHeight(): number
+  hardFork2Height(): number
+  softFork8Height(): number
+  softFork9Height(): number
+  testnet(): boolean
+  withHardForkHeight(height: number): ConsensusConstants
+  withHardFork2Height(height: number): ConsensusConstants
+  withSoftFork8Height(height: number): ConsensusConstants
+  withSoftFork9Height(height: number): ConsensusConstants
+  withTestnet(testnet: boolean): ConsensusConstants
 }
 
 export declare class Constants {
@@ -1684,6 +1735,32 @@ export declare class CustodyInfo {
   asP2ConditionsOrSingleton(): P2ConditionsOrSingletonInfo | null
 }
 
+export declare class DaemonClient {
+  clone(): DaemonClient
+  static connect(url: string, connector: Connector, timeoutSeconds: number): Promise<DaemonClient>
+  rpcClient(): RpcClient
+  subscribe(service: string): Promise<DaemonSubscription>
+  close(): Promise<void>
+  setMaxReconnectAttempts(maxAttempts?: number | undefined | null): void
+  nextDisconnect(): Promise<boolean>
+  nextReconnect(): Promise<boolean>
+}
+
+export declare class DaemonEvent {
+  clone(): DaemonEvent
+  get command(): string
+  set command(value: string)
+  get origin(): string
+  set origin(value: string)
+  get data(): string
+  set data(value: string)
+}
+
+export declare class DaemonSubscription {
+  clone(): DaemonSubscription
+  next(): Promise<DaemonEvent | null>
+}
+
 export declare class Datastore {
   clone(): Datastore
   coin(): Coin
@@ -1850,6 +1927,10 @@ export declare class Event {
   set newPeakWallet(value: NewPeakWallet | undefined | null)
   get coinStateUpdate(): CoinStateUpdate | null
   set coinStateUpdate(value: CoinStateUpdate | undefined | null)
+  get mempoolItemsAdded(): MempoolItemsAdded | null
+  set mempoolItemsAdded(value: MempoolItemsAdded | undefined | null)
+  get mempoolItemsRemoved(): MempoolItemsRemoved | null
+  set mempoolItemsRemoved(value: MempoolItemsRemoved | undefined | null)
 }
 
 export declare class EverythingWithSingletonIssuance {
@@ -1977,6 +2058,7 @@ export declare class FullNodeSimulator {
   getMasterSecretKey(): SecretKey
   getPrefarmPuzzleHash(): Buffer
   setFarmingPh(puzzleHash: Uint8Array): void
+  setGenesisChallenge(genesisChallenge: Uint8Array): void
   getBlockchainState(): BlockchainStateResponse
   getNetworkInfo(): GetNetworkInfoResponse
   getAggsigAdditionalData(): Buffer
@@ -1996,6 +2078,9 @@ export declare class FullNodeSimulator {
   pushTx(spendBundle: SpendBundle): PushTxResponse
   getMempoolItemByTxId(txId: Uint8Array): GetMempoolItemResponse
   getMempoolItemsByCoinName(coinName: Uint8Array): GetMempoolItemsResponse
+  nextTimestamp(): bigint
+  setNextTimestamp(time: bigint): void
+  passTime(time: bigint): void
   farmBlock(blocks: number): Array<BlockRecord>
   revertBlocks(blocks: number): Array<Buffer>
   reorgBlocks(numOfBlocksToRev: number, numOfNewBlocks: number): Array<BlockRecord>
@@ -2167,6 +2252,29 @@ export declare class GetCoinRecordsResponse {
   set truncated(value: boolean | undefined | null)
   get nextCursor(): string | null
   set nextCursor(value: string | undefined | null)
+}
+
+export declare class GetFeeEstimateResponse {
+  clone(): GetFeeEstimateResponse
+  constructor(estimates: Array<bigint>, targetTimes: Array<bigint>, currentFeeRate: number | undefined | null, mempoolSize: bigint | undefined | null, mempoolMaxSize: bigint | undefined | null, fullNodeSynced: boolean | undefined | null, lastTxBlockHeight: number | undefined | null, error: string | undefined | null, success: boolean)
+  get estimates(): Array<bigint>
+  set estimates(value: Array<bigint>)
+  get targetTimes(): Array<bigint>
+  set targetTimes(value: Array<bigint>)
+  get currentFeeRate(): number | null
+  set currentFeeRate(value: number | undefined | null)
+  get mempoolSize(): bigint | null
+  set mempoolSize(value: bigint | undefined | null)
+  get mempoolMaxSize(): bigint | null
+  set mempoolMaxSize(value: bigint | undefined | null)
+  get fullNodeSynced(): boolean | null
+  set fullNodeSynced(value: boolean | undefined | null)
+  get lastTxBlockHeight(): number | null
+  set lastTxBlockHeight(value: number | undefined | null)
+  get error(): string | null
+  set error(value: string | undefined | null)
+  get success(): boolean
+  set success(value: boolean)
 }
 
 export declare class GetMempoolItemResponse {
@@ -2408,7 +2516,9 @@ export declare class MedievalVaultInfo {
 
 export declare class MeltSingleton {
   clone(): MeltSingleton
-  constructor()
+  constructor(puzzleHash?: Uint8Array | undefined | null)
+  get puzzleHash(): Buffer | null
+  set puzzleHash(value: Uint8Array | undefined | null)
 }
 
 export declare class MemberConfig {
@@ -2457,6 +2567,20 @@ export declare class MempoolItem {
   set spendBundle(value: SpendBundle)
   get fee(): bigint
   set fee(value: bigint)
+}
+
+export declare class MempoolItemsAdded {
+  clone(): MempoolItemsAdded
+  constructor(transactionIds: Array<Uint8Array>)
+  get transactionIds(): Array<Buffer>
+  set transactionIds(value: Array<Uint8Array>)
+}
+
+export declare class MempoolItemsRemoved {
+  clone(): MempoolItemsRemoved
+  constructor(removedItems: Array<RemovedMempoolItem>)
+  get removedItems(): Array<RemovedMempoolItem>
+  set removedItems(value: Array<RemovedMempoolItem>)
 }
 
 export declare class MempoolMinFees {
@@ -2526,6 +2650,8 @@ export declare class MipsSpend {
   clone(): MipsSpend
   spend(custodyHash: Uint8Array): Spend
   spendVault(vault: Vault): void
+  dryRun(vault: Vault): VaultDryRun
+  dryRunWithControllers(vault: Vault, controllers: Array<VaultDryRun>): VaultDryRun
   mOfN(config: MemberConfig, required: number, items: Array<Uint8Array>): void
   k1Member(config: MemberConfig, publicKey: K1PublicKey, signature: K1Signature, fastForward: boolean): void
   eip712Member(config: MemberConfig, genesisChallenge: Uint8Array, publicKey: K1PublicKey, signedHash: Uint8Array, signature: K1Signature): void
@@ -2749,6 +2875,9 @@ export declare class OptionAssetInfo {
 
 export declare class OptionContract {
   clone(): OptionContract
+  childProof(): Proof
+  child(p2PuzzleHash: Uint8Array): OptionContract
+  childWith(info: OptionInfo): OptionContract
   constructor(coin: Coin, proof: Proof, info: OptionInfo)
   get coin(): Coin
   set coin(value: Coin)
@@ -3270,6 +3399,14 @@ export declare class Peer {
   requestPuzzleAndSolution(coinId: Uint8Array, height: number): Promise<PuzzleSolutionResponse>
   removeCoinSubscriptions(coinIds?: Array<Uint8Array> | undefined | null): Promise<Array<Buffer>>
   removePuzzleSubscriptions(puzzleHashes?: Array<Uint8Array> | undefined | null): Promise<Array<Buffer>>
+  sendTransaction(spendBundle: SpendBundle): Promise<TransactionAck>
+  registerForPhUpdates(puzzleHashes: Array<Uint8Array>, minHeight: number): Promise<RespondToPhUpdates>
+  registerForCoinUpdates(coinIds: Array<Uint8Array>, minHeight: number): Promise<RespondToCoinUpdates>
+  requestChildren(coinId: Uint8Array): Promise<RespondChildren>
+  requestTransaction(transactionId: Uint8Array): Promise<RespondTransaction>
+  requestPeers(): Promise<RespondPeers>
+  socketAddr(): string
+  close(): Promise<void>
   next(): Promise<Event | null>
 }
 
@@ -3278,6 +3415,24 @@ export declare class PeerOptions {
   constructor()
   get rateLimitFactor(): number
   set rateLimitFactor(value: number)
+  get mempoolUpdates(): boolean
+  set mempoolUpdates(value: boolean)
+}
+
+export declare class PeerSimulator {
+  clone(): PeerSimulator
+  static start(): Promise<PeerSimulator>
+  static startWithMempool(): Promise<PeerSimulator>
+  connect(): Promise<Peer>
+  connectWithMempoolUpdates(): Promise<Peer>
+  socketAddr(): string
+  genesisChallenge(): Buffer
+  farmBlock(blocks: number): Promise<Array<BlockRecord>>
+  height(): Promise<number>
+  headerHash(): Promise<Buffer>
+  newCoin(puzzleHash: Uint8Array, amount: bigint): Promise<Coin>
+  bls(amount: bigint): Promise<BlsPairWithCoin>
+  coinState(coinId: Uint8Array): Promise<CoinState | null>
 }
 
 export declare class PendingSpend {
@@ -3291,6 +3446,78 @@ export declare class PendingSpend {
   asDid(): Did | null
   asNft(): Nft | null
   asOption(): OptionContract | null
+}
+
+export declare class PlotNft {
+  clone(): PlotNft
+  static parseLauncher(launcherCoin: Coin, solution: Program, genesisChallenge: Uint8Array): PlotNft | null
+  parseChild(solution: Program): PlotNft | null
+  leavePool(clvm: Clvm): PlotNft
+  joinPool(clvm: Clvm, targetPuzzleHash: Uint8Array, poolUrl: string, relativeLockHeight: number): PlotNft
+  selfPool(clvm: Clvm, targetPuzzleHash: Uint8Array): PlotNft
+  claimRewards(clvm: Clvm, rewards: Array<Coin>): PlotNftClaim
+  constructor(coin: Coin, proof: Proof, info: PlotNftInfo)
+  get coin(): Coin
+  set coin(value: Coin)
+  get proof(): Proof
+  set proof(value: Proof)
+  get info(): PlotNftInfo
+  set info(value: PlotNftInfo)
+}
+
+export declare class PlotNftClaim {
+  clone(): PlotNftClaim
+  get plotNft(): PlotNft
+  set plotNft(value: PlotNft)
+  get conditions(): Array<Program>
+  set conditions(value: Array<Program>)
+}
+
+export declare class PlotNftInfo {
+  clone(): PlotNftInfo
+  p2PuzzleHash(): Buffer
+  innerPuzzleHash(): Buffer
+  puzzleHash(): Buffer
+  claimDelayed(clvm: Clvm, coin: Coin): Coin
+  constructor(launcherId: Uint8Array, poolState: PoolState, secondsDelay: bigint, delayedPuzzleHash: Uint8Array, poolRewardPrefix: Uint8Array)
+  get launcherId(): Buffer
+  set launcherId(value: Uint8Array)
+  get poolState(): PoolState
+  set poolState(value: PoolState)
+  get secondsDelay(): bigint
+  set secondsDelay(value: bigint)
+  get delayedPuzzleHash(): Buffer
+  set delayedPuzzleHash(value: Uint8Array)
+  get poolRewardPrefix(): Buffer
+  set poolRewardPrefix(value: Uint8Array)
+}
+
+export declare class PlotNftMint {
+  clone(): PlotNftMint
+  get plotNft(): PlotNft
+  set plotNft(value: PlotNft)
+  get parentConditions(): Array<Program>
+  set parentConditions(value: Array<Program>)
+}
+
+export declare class PoolState {
+  clone(): PoolState
+  static selfPooling(targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey): PoolState
+  static farmingToPool(targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey, poolUrl: string, relativeLockHeight: number): PoolState
+  isWaitingRoom(): boolean
+  constructor(version: number, state: PoolSingletonState, targetPuzzleHash: Uint8Array, ownerPublicKey: PublicKey, poolUrl: string | undefined | null, relativeLockHeight: number)
+  get version(): number
+  set version(value: number)
+  get state(): PoolSingletonState
+  set state(value: PoolSingletonState)
+  get targetPuzzleHash(): Buffer
+  set targetPuzzleHash(value: Uint8Array)
+  get ownerPublicKey(): PublicKey
+  set ownerPublicKey(value: PublicKey)
+  get poolUrl(): string | null
+  set poolUrl(value: string | undefined | null)
+  get relativeLockHeight(): number
+  set relativeLockHeight(value: number)
 }
 
 export declare class PoolTarget {
@@ -3554,6 +3781,15 @@ export declare class Remark {
   set rest(value: Program)
 }
 
+export declare class RemovedMempoolItem {
+  clone(): RemovedMempoolItem
+  constructor(transactionId: Uint8Array, reason: MempoolRemoveReason)
+  get transactionId(): Buffer
+  set transactionId(value: Uint8Array)
+  get reason(): MempoolRemoveReason
+  set reason(value: MempoolRemoveReason)
+}
+
 export declare class RequestedPayments {
   clone(): RequestedPayments
   constructor(clvm: Clvm)
@@ -3573,11 +3809,55 @@ export declare class RequestedPayments {
   assertions(assetInfo: AssetInfo): Array<Program>
 }
 
+export declare class RequiredBlsSignature {
+  clone(): RequiredBlsSignature
+  message(): Buffer
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get publicKey(): PublicKey
+  set publicKey(value: PublicKey)
+  get rawMessage(): Buffer
+  set rawMessage(value: Uint8Array)
+  get appendedInfo(): Buffer
+  set appendedInfo(value: Uint8Array)
+  get domainString(): Buffer | null
+  set domainString(value: Uint8Array | undefined | null)
+}
+
+export declare class RequiredSecpSignature {
+  clone(): RequiredSecpSignature
+  get coinId(): Buffer
+  set coinId(value: Uint8Array)
+  get k1PublicKey(): K1PublicKey | null
+  set k1PublicKey(value: K1PublicKey | undefined | null)
+  get r1PublicKey(): R1PublicKey | null
+  set r1PublicKey(value: R1PublicKey | undefined | null)
+  get messageHash(): Buffer
+  set messageHash(value: Uint8Array)
+  get placeholder(): Program
+  set placeholder(value: Program)
+}
+
+export declare class RequiredSignatures {
+  clone(): RequiredSignatures
+  get bls(): Array<RequiredBlsSignature>
+  set bls(value: Array<RequiredBlsSignature>)
+  get secp(): Array<RequiredSecpSignature>
+  set secp(value: Array<RequiredSecpSignature>)
+}
+
 export declare class ReserveFee {
   clone(): ReserveFee
   constructor(amount: bigint)
   get amount(): bigint
   set amount(value: bigint)
+}
+
+export declare class RespondChildren {
+  clone(): RespondChildren
+  constructor(coinStates: Array<CoinState>)
+  get coinStates(): Array<CoinState>
+  set coinStates(value: Array<CoinState>)
 }
 
 export declare class RespondCoinState {
@@ -3587,6 +3867,13 @@ export declare class RespondCoinState {
   set coinIds(value: Array<Uint8Array>)
   get coinStates(): Array<CoinState>
   set coinStates(value: Array<CoinState>)
+}
+
+export declare class RespondPeers {
+  clone(): RespondPeers
+  constructor(peerList: Array<TimestampedPeerInfo>)
+  get peerList(): Array<TimestampedPeerInfo>
+  set peerList(value: Array<TimestampedPeerInfo>)
 }
 
 export declare class RespondPuzzleState {
@@ -3602,6 +3889,35 @@ export declare class RespondPuzzleState {
   set isFinished(value: boolean)
   get coinStates(): Array<CoinState>
   set coinStates(value: Array<CoinState>)
+}
+
+export declare class RespondToCoinUpdates {
+  clone(): RespondToCoinUpdates
+  constructor(coinIds: Array<Uint8Array>, minHeight: number, coinStates: Array<CoinState>)
+  get coinIds(): Array<Buffer>
+  set coinIds(value: Array<Uint8Array>)
+  get minHeight(): number
+  set minHeight(value: number)
+  get coinStates(): Array<CoinState>
+  set coinStates(value: Array<CoinState>)
+}
+
+export declare class RespondToPhUpdates {
+  clone(): RespondToPhUpdates
+  constructor(puzzleHashes: Array<Uint8Array>, minHeight: number, coinStates: Array<CoinState>)
+  get puzzleHashes(): Array<Buffer>
+  set puzzleHashes(value: Array<Uint8Array>)
+  get minHeight(): number
+  set minHeight(value: number)
+  get coinStates(): Array<CoinState>
+  set coinStates(value: Array<CoinState>)
+}
+
+export declare class RespondTransaction {
+  clone(): RespondTransaction
+  constructor(transaction: SpendBundle)
+  get transaction(): SpendBundle
+  set transaction(value: SpendBundle)
 }
 
 export declare class Restriction {
@@ -4227,11 +4543,15 @@ export declare class RpcClient {
   getNetworkInfo(): Promise<GetNetworkInfoResponse>
   getMempoolItemByTxId(txId: Uint8Array): Promise<GetMempoolItemResponse>
   getMempoolItemsByCoinName(coinName: Uint8Array): Promise<GetMempoolItemsResponse>
+  getFeeEstimate(cost: bigint, targetTimes: Array<bigint>): Promise<GetFeeEstimateResponse>
+  getFeePerCost(cost: bigint, targetTime: bigint): Promise<number | null>
 }
 
 export declare class RunCatTail {
   clone(): RunCatTail
-  constructor(program: Program, solution: Program)
+  constructor(puzzleHash: Uint8Array | undefined | null, program: Program, solution: Program)
+  get puzzleHash(): Buffer | null
+  set puzzleHash(value: Uint8Array | undefined | null)
   get program(): Program
   set program(value: Program)
   get solution(): Program
@@ -4364,6 +4684,9 @@ export declare class Simulator {
   clone(): Simulator
   constructor()
   static withSeed(seed: bigint): Simulator
+  static withConstants(constants: ConsensusConstants): Simulator
+  constants(): ConsensusConstants
+  aggSigConstants(): AggSigConstants
   height(): number
   nextTimestamp(): bigint
   headerHash(): Buffer
@@ -4447,6 +4770,7 @@ export declare class Spends {
   selectedCatAmount(assetId: Uint8Array): bigint
   apply(actions: Array<Action>): Deltas
   prepare(deltas: Deltas, relation?: Relation | undefined | null): FinishedSpends
+  applyWithFee(actions: Array<Action>, xchCoins: Array<Coin>, fee: bigint, relation?: Relation | undefined | null): FinishedSpends
 }
 
 export declare class SpendSettlementCatsResult {
@@ -4572,6 +4896,17 @@ export declare class SyncState {
   set synced(value: boolean)
 }
 
+export declare class TimestampedPeerInfo {
+  clone(): TimestampedPeerInfo
+  constructor(host: string, port: number, timestamp: bigint)
+  get host(): string
+  set host(value: string)
+  get port(): number
+  set port(value: number)
+  get timestamp(): bigint
+  set timestamp(value: bigint)
+}
+
 export declare class TradePrice {
   clone(): TradePrice
   constructor(amount: bigint, puzzleHash: Uint8Array)
@@ -4579,6 +4914,17 @@ export declare class TradePrice {
   set amount(value: bigint)
   get puzzleHash(): Buffer
   set puzzleHash(value: Uint8Array)
+}
+
+export declare class TransactionAck {
+  clone(): TransactionAck
+  constructor(txid: Uint8Array, status: number, error?: string | undefined | null)
+  get txid(): Buffer
+  set txid(value: Uint8Array)
+  get status(): number
+  set status(value: number)
+  get error(): string | null
+  set error(value: string | undefined | null)
 }
 
 export declare class TransactionsInfo {
@@ -4672,8 +5018,16 @@ export declare class VaultAuthorization {
   set recovery(value: ControlledVaultRecovery | undefined | null)
 }
 
+export declare class VaultDryRun {
+  clone(): VaultDryRun
+  vault(): Vault
+  costMargin(): bigint
+  spend(delegatedSpend: Spend): void
+}
+
 export declare class VaultInfo {
   clone(): VaultInfo
+  puzzleHash(): Buffer
   constructor(launcherId: Uint8Array, custodyHash: Uint8Array)
   get launcherId(): Buffer
   set launcherId(value: Uint8Array)
@@ -4687,6 +5041,7 @@ export declare class VaultMessageProof {
   static decode(proof: Uint8Array): VaultMessageProof
   encodeString(): string
   static decodeString(proof: string): VaultMessageProof
+  vaultInfo(): VaultInfo
   constructor(coinSpend: CoinSpend, aggregatedSignature: Signature, controllerSpends: Array<CoinSpend>)
   get coinSpend(): CoinSpend
   set coinSpend(value: CoinSpend)
@@ -5270,6 +5625,8 @@ export declare function decodeOffer(offer: string): SpendBundle
 
 export declare function decodePartialOffer(partialOffer: string): SpendBundle
 
+export declare function defaultP2SingletonDelay(): bigint
+
 export declare function eip712DomainSeparator(genesisChallenge: Uint8Array): Buffer
 
 export declare function eip712HashToSign(genesisChallenge: Uint8Array, coinId: Uint8Array, delegatedPuzzleHash: Uint8Array): Buffer
@@ -5305,6 +5662,15 @@ export declare function generateBytes(bytes: number): Buffer
 
 export declare function k1MemberHash(config: MemberConfig, publicKey: K1PublicKey, fastForward: boolean): Buffer
 
+export declare const enum MempoolRemoveReason {
+  Conflict = 0,
+  BlockInclusion = 1,
+  PoolFull = 2,
+  Expired = 3,
+}
+
+export declare function minimumFee(cost: bigint): bigint
+
 export declare function mOfNHash(config: MemberConfig, required: number, items: Array<Uint8Array>): Buffer
 
 export declare const enum P2ConditionsOrSingletonVersion {
@@ -5318,6 +5684,18 @@ export declare function passkeyMemberHash(config: MemberConfig, publicKey: R1Pub
 
 export declare function payableTradePrices(tradePrices: Array<TradePrice>, royaltyBasisPoints: number): Array<TradePrice>
 
+export declare function poolProtocolVersion(): number
+
+export declare function poolRewardParentId(genesisChallenge: Uint8Array, height: number): Buffer
+
+export declare function poolRewardPrefix(genesisChallenge: Uint8Array): Buffer
+
+export declare const enum PoolSingletonState {
+  SelfPooling = 0,
+  LeavingPool = 1,
+  FarmingToPool = 2,
+}
+
 export declare function predictBlankHandleNftCoinId(launcherId: Uint8Array, syntheticPublicKey: PublicKey, royaltyPuzzleHash: Uint8Array, royaltyBasisPoints: number): Buffer
 
 export declare function preventConditionOpcodeRestriction(conditionOpcode: number): Restriction
@@ -5327,6 +5705,8 @@ export declare function preventMultipleCreateCoinsRestriction(): Restriction
 export declare function preventVaultSideEffectsRestriction(): Array<Restriction>
 
 export declare function r1MemberHash(config: MemberConfig, publicKey: R1PublicKey, fastForward: boolean): Buffer
+
+export declare function recommendedFee(cost: bigint, marketFeePerCost?: number | undefined | null): bigint
 
 export declare const enum Relation {
   Unrelated = 0,
@@ -5349,7 +5729,7 @@ export declare function singletonMemberHash(config: MemberConfig, launcherId: Ui
 
 export declare function singletonStructHash(launcherId: Uint8Array): Buffer
 
-export declare function spendBundleCost(coinSpends: Array<CoinSpend>): bigint
+export declare function spendBundleCost(coinSpends: Array<CoinSpend>, constants: ConsensusConstants, height?: number | undefined | null): bigint
 
 export declare function standardPuzzleHash(syntheticKey: PublicKey): Buffer
 

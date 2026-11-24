@@ -11,14 +11,14 @@ use chia_puzzles::SINGLETON_LAUNCHER_HASH;
 use chia_puzzles::SINGLETON_TOP_LAYER_V1_1_HASH;
 use chia_sdk_driver::{
     Bulletin, BulletinMessage, Cat, HashedPtr, Launcher, Layer, MedievalVault as SdkMedievalVault,
-    MedievalVaultInfo, Offer, OptionMetadata, RewardDistributor as SdkRewardDistributor,
+    MedievalVaultInfo, Offer, OptionMetadata, PoolState, RewardDistributor as SdkRewardDistributor,
     RewardDistributorConstants, RewardDistributorState, SettlementLayer, SpendContext,
     StandardLayer, StreamedAsset, create_security_coin as driver_create_security_coin,
-    create_security_coin_with_pk as driver_create_security_coin_with_pk, launch_reward_distributor,
-    spend_security_coin, spend_settlement_cats, spend_settlement_nft,
+    create_security_coin_with_pk as driver_create_security_coin_with_pk, first_offered_xch_coin,
+    launch_reward_distributor, spend_security_coin, spend_settlement_cats, spend_settlement_nft,
 };
 use chia_sdk_types::{
-    Condition, Conditions, MAINNET_CONSTANTS, TESTNET11_CONSTANTS,
+    Condition, Conditions,
     puzzles::{P2NextRewardDistributorEpochSolution, StateSchedulerLayerArgs},
 };
 use chialisp::classic::clvm_tools::binutils::assemble;
@@ -32,10 +32,11 @@ use clvmr::{
 use num_bigint::BigInt;
 
 use crate::{
-    AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did, Force1of2RestrictedVariableMemo,
-    HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo, MemoKind, MintedNfts, MipsMemo,
-    MipsSpend, MofNMemo, Nft, NftMetadata, NftMint, NotarizedPayment, OfferSecurityCoinDetails,
-    OptionContract, P2NextRewardDistributorEpochCoinInfo, Payment, Program, RestrictionMemo,
+    AggSigConstants, AsProgram, AsPtr, CatSpend, CreatedBulletin, CreatedDid, Did,
+    Force1of2RestrictedVariableMemo, HandleNftMetadata, InnerPuzzleMemo, MedievalVault, MemberMemo,
+    MemoKind, MintedNfts, MipsMemo, MipsSpend, MofNMemo, Nft, NftMetadata, NftMint,
+    NotarizedPayment, OfferSecurityCoinDetails, OptionContract,
+    P2NextRewardDistributorEpochCoinInfo, Payment, PlotNftMint, Program, RestrictionMemo,
     RewardDistributor, RewardDistributorInfoFromEveCoin, RewardDistributorLaunchResult, RewardSlot,
     SettlementNftSpendResult, Spend, SpendSettlementCatsResult, StreamedAssetParsingResult,
     VaultMint, WrapperMemo, conditions_to_programs,
@@ -329,6 +330,30 @@ impl Clvm {
         Ok(VaultMint {
             parent_conditions,
             vault: vault.into(),
+        })
+    }
+
+    pub fn mint_plot_nft(
+        &self,
+        parent_coin_id: Bytes32,
+        pool_state: PoolState,
+        seconds_delay: u64,
+        delayed_puzzle_hash: Bytes32,
+        genesis_challenge: Bytes32,
+    ) -> Result<PlotNftMint> {
+        let mut ctx = self.0.lock().unwrap();
+
+        let (parent_conditions, plot_nft) = Launcher::new(parent_coin_id, 1).mint_plot_nft(
+            &mut ctx,
+            pool_state,
+            seconds_delay,
+            delayed_puzzle_hash,
+            genesis_challenge,
+        )?;
+
+        Ok(PlotNftMint {
+            parent_conditions: conditions_to_programs(&mut ctx, &self.0, parent_conditions)?,
+            plot_nft: plot_nft.into(),
         })
     }
 
@@ -728,7 +753,7 @@ impl Clvm {
         first_epoch_start: u64,
         cat_refund_puzzle_hash: Bytes32,
         constants: RewardDistributorConstants,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
         comment: String,
     ) -> Result<RewardDistributorLaunchResult> {
         let mut ctx = self.0.lock().unwrap();
@@ -746,11 +771,7 @@ impl Clvm {
             first_epoch_start,
             cat_refund_puzzle_hash,
             constants,
-            if mainnet {
-                &MAINNET_CONSTANTS
-            } else {
-                &TESTNET11_CONSTANTS
-            },
+            &agg_sig_constants.0,
             &comment,
         )?;
 
@@ -790,7 +811,7 @@ impl Clvm {
         let offer = Offer::from_spend_bundle(&mut ctx, &offer)?;
 
         let (security_coin_sk, security_coin) =
-            driver_create_security_coin(&mut ctx, offer.offered_coins().xch[0])?;
+            driver_create_security_coin(&mut ctx, first_offered_xch_coin(&offer)?)?;
 
         Ok(OfferSecurityCoinDetails {
             security_coin,
@@ -826,7 +847,7 @@ impl Clvm {
 
         let security_coin = driver_create_security_coin_with_pk(
             &mut ctx,
-            offer.offered_coins().xch[0],
+            first_offered_xch_coin(&offer)?,
             security_coin_sk.public_key(),
         )?;
 
@@ -840,7 +861,7 @@ impl Clvm {
         &self,
         security_coin_details: OfferSecurityCoinDetails,
         conditions: Vec<Program>,
-        mainnet: bool,
+        agg_sig_constants: AggSigConstants,
     ) -> Result<Signature> {
         let mut ctx = self.0.lock().unwrap();
 
@@ -854,11 +875,7 @@ impl Clvm {
             security_coin_details.security_coin,
             sdk_conditions,
             &security_coin_details.security_coin_sk,
-            if mainnet {
-                &MAINNET_CONSTANTS
-            } else {
-                &TESTNET11_CONSTANTS
-            },
+            &agg_sig_constants.0,
         )?)
     }
 

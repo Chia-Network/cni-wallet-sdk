@@ -43,6 +43,9 @@ pub enum Error {
     #[error("Wrong length, expected {expected} bytes, found {found}")]
     WrongLength { expected: usize, found: usize },
 
+    #[error("Too short, expected at least {minimum} bytes, found {found}")]
+    TooShort { minimum: usize, found: usize },
+
     #[error("Bip39 error: {0}")]
     Bip39(#[from] bip39::Error),
 
@@ -64,6 +67,10 @@ pub enum Error {
     #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
     #[error("Client error: {0}")]
     Client(#[from] chia_sdk_client::ClientError),
+
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    #[error("Daemon error: {0}")]
+    Daemon(#[from] chia_sdk_daemon::DaemonError),
 
     #[error("Reject coin state: {0:?}")]
     RejectCoinState(RejectCoinState),
@@ -125,6 +132,13 @@ pub enum Error {
 
     #[error("Simulator error: {0}")]
     Simulator(#[from] SimulatorError),
+
+    #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+    #[error("Peer simulator error: {0}")]
+    PeerSimulator(#[from] chia_sdk_test::PeerSimulatorError),
+
+    #[error("Signer error: {0}")]
+    Signer(#[from] chia_sdk_signer::SignerError),
 
     #[error("BigInt parse error: {0}")]
     BigIntParse(#[from] ParseBigIntError),

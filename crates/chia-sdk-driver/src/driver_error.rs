@@ -17,6 +17,10 @@ pub enum DriverError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// Invalid or unsupported Internal Custody policy or spend.
+    #[error("internal custody error: {0}")]
+    InternalCustody(#[from] crate::InternalCustodyError),
+
     /// An integer didn't fit in the type it was converted to.
     #[error("try from int error")]
     TryFromInt(#[from] TryFromIntError),
@@ -109,6 +113,26 @@ pub enum DriverError {
     #[error("the offer can't be taken by this fusion")]
     FusionOfferMismatch,
 
+    /// A pool state isn't one that the reference wallet would create. For example, the version
+    /// isn't supported, the owner key is the infinity point, a self pooling state has a pool URL or
+    /// relative lock height, a pool's relative lock height is out of range, or a plot NFT is
+    /// launched in the leaving pool state or with an even amount.
+    #[error("invalid pool state: {0}")]
+    InvalidPoolState(&'static str),
+
+    /// A plot NFT can't move to the requested state from its current one. For example, leaving a
+    /// pool that it isn't farming to, joining a pool without leaving the current one first, or
+    /// moving to the state it's already in.
+    #[error("invalid plot NFT transition: {0}")]
+    InvalidPlotNftTransition(&'static str),
+
+    /// A coin can't be claimed by a plot NFT. For example, no rewards were given, a reward is
+    /// listed twice, the coin isn't locked to the plot NFT's p2 puzzle hash, it isn't a pool
+    /// reward, its amount is odd, or it was farmed at height 0. This is also returned when
+    /// parsing a solution whose reward height isn't an atom.
+    #[error("invalid pool reward: {0}")]
+    InvalidPoolReward(&'static str),
+
     /// A spend that must recreate an asset didn't create a child. For example, an NFT or
     /// datastore spend without an odd `CREATE_COIN`, or a CAT spend whose children can't be parsed
     /// when clear signing.
@@ -137,6 +161,27 @@ pub enum DriverError {
     /// be treated as the child of the singleton.
     #[error("expected even oracle fee, but it was odd")]
     OddOracleFee,
+
+    /// An offer used to fund a launch or a security coin doesn't offer any XCH.
+    #[error("offer doesn't offer any XCH")]
+    MissingOfferedXch,
+
+    /// The price of one `XCHandles` registration period is 0, so the number of periods paid for
+    /// can't be computed.
+    #[error("price of one registration period is 0")]
+    ZeroRegistrationPrice,
+
+    /// Two arguments that must describe the same items have different lengths, for example a
+    /// list of NFTs and the list of their proofs.
+    #[error("expected {expected} items in {argument}, but found {found}")]
+    LengthMismatch {
+        /// The argument with the wrong length.
+        argument: &'static str,
+        /// The length it must have.
+        expected: usize,
+        /// The length it had.
+        found: usize,
+    },
 
     /// The total of the `RESERVE_FEE` conditions in an offer doesn't fit in a [`u64`].
     #[error("fee overflow")]
@@ -218,6 +263,30 @@ pub enum DriverError {
     #[error("the selected coins are insufficient to cover the outputs of the transaction")]
     InsufficientFunds,
 
+    /// Coins couldn't be selected to cover an amount, such as the actions and fee of
+    /// [`Spends::apply_with_fee`](crate::Spends::apply_with_fee).
+    #[error("coin selection failed: {0}")]
+    CoinSelection(#[from] chia_sdk_utils::CoinSelectionError),
+
+    /// [`spend_with_minimum_fee`](crate::spend_with_minimum_fee) rebuilt the transaction several
+    /// times, and the fee still didn't cover its cost.
+    #[error("the fee didn't cover the cost of the transaction after several attempts")]
+    FeeDidNotConverge,
+
+    /// A throwaway key of a [`VaultDryRun`](crate::VaultDryRun) failed to sign.
+    #[error("a stand-in vault key failed to sign: {0}")]
+    DryRunSigningFailed(String),
+
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given more than one stand-in for the
+    /// same controller.
+    #[error("more than one stand-in was given for vault controller {0}")]
+    DuplicateDryRunController(Bytes32),
+
+    /// [`VaultDryRun::with_controllers`](crate::VaultDryRun::with_controllers) was given a stand-in for the vault itself
+    /// as one of its controllers.
+    #[error("vault {0} can't be given as its own controller")]
+    DryRunControllerIsVault(Bytes32),
+
     /// Two settlement coins with the same puzzle hash would make the same notarized payment, so a
     /// single payment assertion would be satisfied by either of them.
     #[error("two settlement coins with the same puzzle hash make the same notarized payment")]
@@ -235,6 +304,19 @@ pub enum DriverError {
     /// example, a trade price in an offer, or the total of the fees.
     #[error("the amount is too large to fit in a coin")]
     AmountOverflow,
+
+    /// Arithmetic on values parsed from a spend, or passed to a spend builder, overflowed,
+    /// underflowed or divided by zero. For example, a reward distributor withdrawal that removes
+    /// more rewards than its reward slot holds, or a payout with a precision of zero.
+    #[error("arithmetic overflow")]
+    ArithmeticOverflow,
+
+    /// A reward distributor commit incentives spend targets an epoch the puzzle can't reach from
+    /// the spent reward slot: the epoch length is zero, or the target epoch is before the slot's
+    /// epoch, isn't a whole number of epochs after it, or needs more reward slots than fit in a
+    /// block.
+    #[error("invalid reward distributor epoch")]
+    InvalidRewardDistributorEpoch,
 
     /// [`Spends::finish_with_keys`](crate::Spends::finish_with_keys) wasn't given a public key for
     /// one of the p2 puzzle hashes being spent.
@@ -347,6 +429,26 @@ pub enum DriverError {
         bps: u64,
     },
 
+    /// An auction's buy now price is below its minimum bid. Since a bid at the buy now price skips
+    /// the bid verifier, it would undercut the minimum bid. This includes `Some(0)`, which would be
+    /// curried in the same way as `None`.
+    #[error(
+        "the auction's buy now price of {buy_now_price} is below the minimum bid of {minimum_bid}"
+    )]
+    AuctionBuyNowPriceBelowMinimumBid {
+        /// The buy now price.
+        buy_now_price: u64,
+        /// The minimum bid.
+        minimum_bid: u64,
+    },
+
+    /// An auction can't be bought now, since it has no buy now price, has ended, or already has a
+    /// winning bid at the buy now price.
+    #[error(
+        "the auction can't be bought now, since it has no buy now price, has ended, or has a bid at it"
+    )]
+    AuctionBuyNowUnavailable,
+
     /// Two of an auction's payments (the buyer's premium, the commission, and the payout) have the
     /// same puzzle hash, so they could be identical coins and the auction couldn't be ended.
     #[error("puzzle hash {0} receives more than one payment when the auction ends")]
@@ -371,7 +473,28 @@ pub enum DriverError {
     #[error("the auction reserve must be an empty coin locked by the auction")]
     InvalidAuctionReserve,
 
-    /// The NFT passed to `Launcher::launch_auction` isn't locked by the auction's lock puzzle hash.
+    /// The NFT passed to `AuctionLaunch::into_auction` isn't the coin at the memo's NFT coin id, or
+    /// its info doesn't match its puzzle hash.
+    #[error("the NFT isn't the coin locked by the auction")]
+    AuctionNftMismatch,
+
+    /// A bid's puzzle hash is the settlement payments puzzle hash or the auction's lock puzzle hash.
+    /// Anyone could take a refund or NFT sent to the settlement payments puzzle hash, and nobody
+    /// could spend one sent to the lock puzzle hash.
+    #[error("puzzle hash {0} can't receive an auction bid's refund or NFT")]
+    ReservedAuctionBidPuzzleHash(Bytes32),
+
+    /// Buying an auction now in a single spend would create two identical coins from the reserve,
+    /// since the refund of the current winning bid has the same puzzle hash and amount as one of
+    /// the payments. The bid at the buy now price must be placed on its own, and the auction ended
+    /// in a later spend.
+    #[error(
+        "buying the auction now in one spend would create the coin {0} twice, so place the bid at the buy now price on its own and end the auction in a later spend"
+    )]
+    AuctionBuyNowDuplicateOutput(Bytes32),
+
+    /// The NFT passed to `Launcher::launch_auction` or `AuctionLaunch::into_auction` isn't locked by
+    /// the auction's lock puzzle hash.
     #[error("the NFT must be locked by the auction before it's launched")]
     AuctionNftNotLocked,
 
@@ -393,9 +516,17 @@ pub enum DriverError {
     #[error("signer error: {0}")]
     Signer(#[from] SignerError),
 
-    /// A vault's delegated puzzle isn't a quoted list of conditions, so it can't be clear signed.
+    /// A delegated puzzle isn't a quoted list of conditions, or its conditions could be misunderstood (such as a
+    /// condition with a known opcode that doesn't parse, or more than one odd output from a vault), so it can't be
+    /// clear signed.
     #[error("invalid delegated spend format")]
     InvalidDelegatedSpendFormat,
+
+    /// A CAT spend reveals its TAIL more than once, or outputs a `MELT_SINGLETON` condition, which the CAT puzzle
+    /// treats as a TAIL reveal without a program. The CAT puzzle only runs the last reveal, so these are rejected
+    /// rather than risk showing the wrong TAIL.
+    #[error("invalid TAIL reveal")]
+    InvalidTailReveal,
 
     /// A message sent by a vault isn't a puzzle-to-coin message with exactly one coin id.
     #[error("invalid vault message format")]
@@ -683,4 +814,24 @@ pub enum DriverError {
     /// A secured mint without a melt public key can't melt its pre-launcher coin.
     #[error("the secured mint has no melt public key, so its pre-launcher can't be melted")]
     NoMeltPublicKey,
+}
+
+#[cfg(feature = "action-layer")]
+impl DriverError {
+    /// Returns [`DriverError::LengthMismatch`] if `found` isn't `expected`.
+    pub(crate) fn check_length(
+        argument: &'static str,
+        expected: usize,
+        found: usize,
+    ) -> Result<(), Self> {
+        if expected == found {
+            Ok(())
+        } else {
+            Err(Self::LengthMismatch {
+                argument,
+                expected,
+                found,
+            })
+        }
+    }
 }

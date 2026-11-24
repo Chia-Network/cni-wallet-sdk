@@ -19,6 +19,7 @@ mod clvm_types;
 mod coin;
 mod compact_representation;
 mod conditions;
+mod consensus_constants;
 mod constants;
 mod convert;
 mod eip712;
@@ -30,11 +31,13 @@ mod mips;
 mod mnemonic;
 mod offer;
 mod partial_offer;
+mod plot_nft;
 mod program;
 mod puzzle;
 mod rpc;
 mod secp;
 mod secure_the_bag;
+mod signer;
 mod simulator;
 mod splitter;
 mod utils;
@@ -50,6 +53,7 @@ pub use clvm_types::*;
 pub use coin::*;
 pub use compact_representation::*;
 pub use conditions::*;
+pub use consensus_constants::*;
 pub use constants::*;
 pub use eip712::*;
 pub use full_node_simulator::*;
@@ -60,20 +64,32 @@ pub use mips::*;
 pub use mnemonic::*;
 pub use offer::*;
 pub use partial_offer::*;
+pub use plot_nft::*;
 pub use program::*;
 pub use puzzle::*;
 pub use rpc::*;
 pub use secp::*;
 pub use secure_the_bag::*;
+pub use signer::*;
 pub use simulator::*;
 pub use splitter::*;
 pub use utils::*;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod daemon;
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 mod peer;
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use daemon::*;
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use peer::*;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+mod peer_simulator;
+
+#[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
+pub use peer_simulator::*;
 
 pub use chia_bls::{PublicKey, SecretKey, Signature};
 pub use chia_protocol::{
@@ -88,9 +104,9 @@ pub use chia_sdk_coinset::{
     AdditionsAndRemovalsResponse, BlockchainState, BlockchainStateResponse, CoinRecord,
     GetBlockRecordByHeightResponse, GetBlockRecordResponse, GetBlockRecordsResponse,
     GetBlockResponse, GetBlockSpendsResponse, GetBlocksResponse, GetCoinRecordResponse,
-    GetCoinRecordsResponse, GetMempoolItemResponse, GetMempoolItemsResponse,
-    GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem, MempoolMinFees,
-    PushTxResponse, SyncState,
+    GetCoinRecordsResponse, GetFeeEstimateResponse, GetMempoolItemResponse,
+    GetMempoolItemsResponse, GetNetworkInfoResponse, GetPuzzleAndSolutionResponse, MempoolItem,
+    MempoolMinFees, PushTxResponse, SyncState,
 };
 pub use chia_sdk_driver::{
     AuctionBidVerifier, AuctionInfo, AuctionLaunch, AuctionReserve, AuctionSettings, BagAsset,
@@ -101,19 +117,20 @@ pub use chia_sdk_driver::{
     DropCoin, FusionDirection, MedievalVaultHint, MedievalVaultInfo, MetadataUpdate,
     OptionAssetInfo, OptionInfo, OptionMetadata, OptionType, OptionUnderlying,
     P2ConditionsOrSingleton, P2ConditionsOrSingletonVersion, P2ParentCoin, PartialOfferAsset,
-    RewardDistributorAddEntryActionLog, RewardDistributorAddIncentivesActionLog,
-    RewardDistributorCommitIncentivesActionLog, RewardDistributorConstants,
-    RewardDistributorInitiatePayoutActionLog, RewardDistributorNewEpochActionLog,
-    RewardDistributorNftStakeEntry, RewardDistributorRefreshNftsFromDlActionLog,
-    RewardDistributorRemoveEntryActionLog, RewardDistributorStakeActionLog, RewardDistributorState,
-    RewardDistributorStateTransition, RewardDistributorSyncActionLog,
-    RewardDistributorUnstakeActionLog, RewardDistributorWithdrawIncentivesActionLog,
-    RoundRewardInfo, RoundTimeInfo, RoyaltyInfo, SigningVault, SplitterPayout, StreamedAsset,
-    StreamingPuzzleInfo, UriKind, VaultAuthorization, VaultInfo, VaultMessageProof, VaultOutput,
-    VaultVersion, XchandlesConstants, XchandlesDelegatedStateActionLog,
-    XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog, XchandlesExtendActionLog,
-    XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog, XchandlesPrecommitValueLog,
-    XchandlesRefundActionLog, XchandlesRegisterActionLog, XchandlesRegistryState,
+    PlotNftInfo, PoolSingletonState, PoolState, RewardDistributorAddEntryActionLog,
+    RewardDistributorAddIncentivesActionLog, RewardDistributorCommitIncentivesActionLog,
+    RewardDistributorConstants, RewardDistributorInitiatePayoutActionLog,
+    RewardDistributorNewEpochActionLog, RewardDistributorNftStakeEntry,
+    RewardDistributorRefreshNftsFromDlActionLog, RewardDistributorRemoveEntryActionLog,
+    RewardDistributorStakeActionLog, RewardDistributorState, RewardDistributorStateTransition,
+    RewardDistributorSyncActionLog, RewardDistributorUnstakeActionLog,
+    RewardDistributorWithdrawIncentivesActionLog, RoundRewardInfo, RoundTimeInfo, RoyaltyInfo,
+    SigningVault, SplitterPayout, StreamedAsset, StreamingPuzzleInfo, UriKind, VaultAuthorization,
+    VaultInfo, VaultMessageProof, VaultOutput, VaultVersion, XchandlesConstants,
+    XchandlesDelegatedStateActionLog, XchandlesExecuteUpdateActionLog, XchandlesExpireActionLog,
+    XchandlesExtendActionLog, XchandlesInitiateUpdateActionLog, XchandlesOracleActionLog,
+    XchandlesPrecommitValueLog, XchandlesRefundActionLog, XchandlesRegisterActionLog,
+    XchandlesRegistryState,
 };
 pub use chia_sdk_types::puzzles::HandleNftMetadata;
 pub use chia_sdk_types::puzzles::{CompactCoinProof, CompactLineageProof};
@@ -132,7 +149,12 @@ pub use chia_sdk_types::{
 
 #[cfg(any(feature = "napi", feature = "pyo3", feature = "uniffi"))]
 pub use chia_protocol::{
-    CoinStateUpdate, NewPeakWallet, PuzzleSolutionResponse, RespondCoinState, RespondPuzzleState,
+    CoinStateUpdate, MempoolItemsAdded, MempoolItemsRemoved, NewPeakWallet, PuzzleSolutionResponse,
+    RemovedMempoolItem, RespondChildren, RespondCoinState, RespondPeers, RespondPuzzleState,
+    RespondToCoinUpdates, RespondToPhUpdates, RespondTransaction, TimestampedPeerInfo,
+    TransactionAck,
 };
+
+pub use chia_protocol::MempoolRemoveReason;
 
 pub(crate) use convert::{AsProgram, AsPtr, conditions_to_programs};
