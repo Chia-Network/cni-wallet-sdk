@@ -1,9 +1,11 @@
 import test from "ava";
 
 import {
+  BlsPair,
   bytesEqual,
   Clvm,
   Coin,
+  ConsensusConstants,
   Constants,
   curryTreeHash,
   fromHex,
@@ -11,7 +13,10 @@ import {
   NftMetadata,
   NftMint,
   PublicKey,
+  SecretKey,
+  Signature,
   Simulator,
+  SpendBundle,
   spendBundleCost,
   toHex,
 } from "../index.js";
@@ -172,6 +177,36 @@ test("public key roundtrip", (t) => {
   t.true(bytesEqual(PublicKey.infinity().toBytes(), pk.toBytes()));
 });
 
+test("secret key from short seed throws", (t) => {
+  t.throws(() => SecretKey.fromSeed(new Uint8Array(31)), {
+    message: /expected at least 32 bytes, found 31/,
+  });
+  t.notThrows(() => SecretKey.fromSeed(new Uint8Array(32)));
+});
+
+test("many key pairs from an overflowing seed range throws", (t) => {
+  const max = 2n ** 64n - 1n;
+  t.throws(() => BlsPair.manyFromSeed(max, 2), { message: /overflows u64/ });
+  t.is(BlsPair.manyFromSeed(max, 1).length, 1);
+});
+
+test("offer security coin from an offer without xch throws", (t) => {
+  const clvm = new Clvm();
+  const offer = new SpendBundle([], Signature.infinity());
+
+  t.throws(() => clvm.createOfferSecurityCoin(offer), {
+    message: /offer doesn't offer any XCH/,
+  });
+  t.throws(
+    () =>
+      clvm.createOfferSecurityCoinWithKey(
+        offer,
+        SecretKey.fromSeed(new Uint8Array(32)),
+      ),
+    { message: /offer doesn't offer any XCH/ },
+  );
+});
+
 test("curry add function", (t) => {
   const clvm = new Clvm();
 
@@ -287,7 +322,22 @@ test("mint and spend nft", (t) => {
     ),
   );
 
-  t.is(spendBundleCost(coinSpends), 61_437_425n);
+  t.is(
+    spendBundleCost(coinSpends, ConsensusConstants.mainnet(), 9_500_000),
+    61_437_425n,
+  );
+  t.is(spendBundleCost(coinSpends, ConsensusConstants.mainnet()), 66_418_338n);
+
+  // The cost follows the network's fork heights: with the 3.0 hard fork before the given
+  // height, it's the cost after the fork.
+  t.is(
+    spendBundleCost(
+      coinSpends,
+      ConsensusConstants.mainnet().withHardFork2Height(9_000_000),
+      9_500_000,
+    ),
+    66_418_338n,
+  );
 });
 
 test("create and parse condition", (t) => {
@@ -308,6 +358,31 @@ test("create and parse condition", (t) => {
       .filter((memo) => memo !== null),
     [puzzleHash],
   );
+});
+
+test("parse melt condition with and without a puzzle hash", (t) => {
+  const clvm = new Clvm();
+
+  const puzzleHash = fromHex("ff".repeat(32));
+
+  t.is(clvm.meltSingleton().parseMeltSingleton()?.puzzleHash, null);
+  t.true(
+    bytesEqual(
+      clvm.meltSingleton(puzzleHash).parseMeltSingleton()!.puzzleHash!,
+      puzzleHash,
+    ),
+  );
+});
+
+test("non-canonical opcode is not parsed as a condition", (t) => {
+  const clvm = new Clvm();
+
+  // (0x0033 0x01..01 1) isn't a CREATE_COIN to consensus, which only accepts the opcode 51.
+  const condition = clvm.deserialize(
+    fromHex(`ff820033ffa0${"01".repeat(32)}ff0180`),
+  );
+
+  t.is(condition.parseCreateCoin(), null);
 });
 
 test("handle nft metadata nil and populated encodings", (t) => {

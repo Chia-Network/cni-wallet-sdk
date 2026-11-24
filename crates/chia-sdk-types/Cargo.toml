@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-types"
-version = "0.37.1"
+version = "0.39.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Standard Chia types for things such as puzzle info and conditions."
@@ -17,6 +17,7 @@ workspace = true
 [features]
 chip-0008 = []
 chip-0021 = []
+pooling = []
 chip-0035 = []
 chip-0037 = ["dep:sha3"]
 chip-0052 = []

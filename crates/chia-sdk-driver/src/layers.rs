@@ -2,6 +2,7 @@ mod augmented_condition_layer;
 mod bulletin_layer;
 mod cat_layer;
 mod did_layer;
+mod internal_custody_layer;
 mod mips;
 mod nft_ownership_layer;
 mod nft_state_layer;
@@ -21,6 +22,7 @@ pub use augmented_condition_layer::*;
 pub use bulletin_layer::*;
 pub use cat_layer::*;
 pub use did_layer::*;
+pub use internal_custody_layer::*;
 pub use mips::*;
 pub use nft_ownership_layer::*;
 pub use nft_state_layer::*;
@@ -57,6 +59,24 @@ mod action_layer;
 
 #[cfg(feature = "action-layer")]
 pub use action_layer::*;
+
+#[cfg(feature = "pooling")]
+mod p2_singleton_or_delayed_layer;
+#[cfg(feature = "pooling")]
+mod pool_member_layer;
+#[cfg(feature = "pooling")]
+mod pool_waiting_room_layer;
+#[cfg(feature = "pooling")]
+mod singleton_v1_layer;
+
+#[cfg(feature = "pooling")]
+pub use p2_singleton_or_delayed_layer::*;
+#[cfg(feature = "pooling")]
+pub use pool_member_layer::*;
+#[cfg(feature = "pooling")]
+pub use pool_waiting_room_layer::*;
+#[cfg(feature = "pooling")]
+pub use singleton_v1_layer::*;
 
 #[cfg(feature = "chip-0008")]
 mod splitter_layer;

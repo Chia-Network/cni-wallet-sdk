@@ -1,6 +1,6 @@
 [package]
 name = "chia-sdk-client"
-version = "0.37.1"
+version = "0.39.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Utilities for connecting to Chia full node peers via the light wallet protocol."
@@ -35,6 +35,10 @@ tokio-tungstenite = { workspace = true }
 # This is to ensure that the bindgen feature is enabled for the aws-lc-rs crate.
 # https://aws.github.io/aws-lc-rs/platform_support.html#tested-platforms
 aws-lc-rs = { version = "1", features = ["bindgen"], optional = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }
 
 [package.metadata.cargo-machete]
 ignored = ["aws-lc-rs"]

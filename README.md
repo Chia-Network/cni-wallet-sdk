@@ -57,6 +57,7 @@ The Rust crate re-exports a set of smaller crates, which can also be used indivi
 | `chip-0052`             | Partial offers ([CHIP-0052](https://github.com/Chia-Network/chips/blob/main/CHIPs/chip-0052.md))          |
 | `action-layer`          | Action layer puzzles and drivers                                                                          |
 | `auction`               | English auctions for NFTs, built on the action layer                                                      |
+| `pooling`               | Plot NFTs ([pooling puzzles](https://chialisp.com/pooling))                                               |
 | `offer-compression`     | Compression and decompression of offer files                                                              |
 | `peer-simulator`        | Simulated full node peer for networking tests                                                             |
 | `native-tls` / `rustls` | TLS backend for network connections                                                                       |
@@ -68,6 +69,7 @@ If you're new to developing on Chia, [xch.dev](https://xch.dev) is a great place
 From there:
 
 - Browse the [Rust API docs](https://docs.rs/chia-wallet-sdk/latest/chia_wallet_sdk)
+- [Internal Custody (prefarm) guide: construction and clear signing](docs/internal-custody.md)
 - Check out the [examples](examples), such as [spending CATs](examples/cat_spends.rs) or [using the simulator](examples/spend_simulator.rs)
 - Look at the binding tests in [`napi/__test__`](napi/__test__), [`wasm/__test__`](wasm/__test__), and [`pyo3/tests`](pyo3/tests) for usage from JavaScript and Python
 
